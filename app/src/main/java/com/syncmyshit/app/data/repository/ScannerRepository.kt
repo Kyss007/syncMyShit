@@ -12,6 +12,7 @@ import com.syncmyshit.app.utils.StorageAccessHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 
 class ScannerRepository(
@@ -21,9 +22,22 @@ class ScannerRepository(
 
     suspend fun discoverEmulatorsAndGames(): List<EmulatorProfile> = withContext(Dispatchers.IO) {
         val packageManager = context.packageManager
-        val installedPackages = runCatching {
-            packageManager.getInstalledPackages(PackageManager.GET_META_DATA).map { it.packageName }.toSet()
-        }.getOrDefault(emptySet())
+
+        // getInstalledPackages with GET_META_DATA can hang indefinitely on de-Googled ROMs
+        // (GammaOS Nano, LineageOS without GApps, etc.). We cap it at 3 seconds.
+        // If it times out, path-based discovery still finds everything on the filesystem.
+        val installedPackages: Set<String> = withTimeoutOrNull(3_000L) {
+            runCatching {
+                packageManager.getInstalledPackages(PackageManager.GET_META_DATA)
+                    .map { it.packageName }.toSet()
+            }.getOrElse {
+                // Fallback: lighter flag (no metadata), works on more ROM variants
+                runCatching {
+                    packageManager.getInstalledPackages(0)
+                        .map { it.packageName }.toSet()
+                }.getOrDefault(emptySet())
+            }
+        } ?: emptySet() // PM timed out — scan by path only
 
         val storageRoots = StorageAccessHelper.getStorageRoots(context)
         val customProfiles = preferencesManager.customProfiles.first()

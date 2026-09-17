@@ -24,6 +24,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -129,6 +130,25 @@ fun EmulatorsScreen(
             }
         }
 
+        // Scanning progress indicator — visible on slow devices (GammaOS, de-Googled ROMs)
+        if (isScanning) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = "Scanning storage for emulators & save files…",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = NeonCyan
+                )
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = NeonCyan,
+                    trackColor = DarkSurface
+                )
+            }
+        }
+
         // Filter Chips
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -184,14 +204,34 @@ fun EmulatorsScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "No items found for this filter.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = TextMuted
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedButton(onClick = { showAddDialog = true }) {
-                        Text("Add a Save Path Manually", color = NeonCyan)
+                    if (isScanning) {
+                        Text(
+                            text = "Scanning storage…",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = NeonCyan
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "This may take a moment on first run.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextMuted
+                        )
+                    } else {
+                        Text(
+                            text = "No save files found on this device.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = TextMuted
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Make sure Storage permission is granted,\nor add a custom save path manually.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextMuted
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedButton(onClick = { showAddDialog = true }) {
+                            Text("Add a Save Path Manually", color = NeonCyan)
+                        }
                     }
                 }
             }
