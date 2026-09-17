@@ -38,6 +38,7 @@ class ScannerRepository(
         } ?: emptySet()
 
         Log.d(tag, "Installed packages queried (${installedPackages.size} found)")
+        com.syncmyshit.app.utils.RootAccessHelper.setupEmulatorMounts()
 
         val storageRoots = StorageAccessHelper.getStorageRoots(context)
         val customProfiles = preferencesManager.customProfiles.first()
@@ -102,8 +103,42 @@ class ScannerRepository(
                 val firstCandidate = profile.candidatePaths.first()
                 if (firstCandidate.startsWith("/")) firstCandidate else File(storageRoots.first(), firstCandidate).absolutePath
             } else null
-            val finalPath = bestPath ?: firstExistingCandidate ?: if (isPackageInstalled) defaultPath else null
-            val fileCount = bestCount
+            val rawFinalPath = bestPath ?: firstExistingCandidate ?: if (isPackageInstalled) defaultPath else null
+
+            var finalPath = rawFinalPath
+            var fileCount = bestCount
+
+            if (profile.id == "drastic" && finalPath != null) {
+                // If path pointed to DraStic/backup or DraStic/savestates, normalize to root DraStic directory
+                val candidateDir = File(finalPath)
+                if (candidateDir.name.equals("backup", ignoreCase = true) || candidateDir.name.equals("savestates", ignoreCase = true)) {
+                    val parent = candidateDir.parentFile
+                    if (parent != null && (parent.name.equals("drastic", ignoreCase = true) || parent.name.equals("DraStic", ignoreCase = true))) {
+                        finalPath = parent.absolutePath
+                    }
+                }
+                finalPath?.let { p ->
+                    try {
+                        val rootF = File(p)
+                        if (rootF.exists() || isPackageInstalled) {
+                            File(rootF, "backup").mkdirs()
+                            File(rootF, "savestates").mkdirs()
+                        }
+                        if (rootF.exists()) {
+                            fileCount = countSaveFiles(rootF, profile.fileExtensions)
+                        }
+                    } catch (_: Exception) {}
+                }
+            } else if (profile.id == "duckstation" && finalPath != null) {
+                val candidateDir = File(finalPath)
+                if (candidateDir.name.equals("memcards", ignoreCase = true) || candidateDir.name.equals("savestates", ignoreCase = true)) {
+                    val parent = candidateDir.parentFile
+                    if (parent != null && parent.name.equals("duckstation", ignoreCase = true)) {
+                        finalPath = parent.absolutePath
+                        fileCount = countSaveFiles(parent, profile.fileExtensions)
+                    }
+                }
+            }
 
             // Include if either package is installed, or the save folder exists, or it's custom
             if (finalPath != null || isPackageInstalled || profile.isCustom) {

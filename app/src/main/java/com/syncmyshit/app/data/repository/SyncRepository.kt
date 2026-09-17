@@ -15,11 +15,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
+import android.util.Log
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
+
+private const val TAG = "SyncRepository"
 
 /**
  * Handles all Google Drive sync operations.
@@ -219,6 +222,123 @@ class SyncRepository(
         return remoteFileName.replace("___", File.separator)
     }
 
+    private fun resolveTargetLocalFile(rootDir: File, profileId: String, decodedRelPath: String): File {
+        if (profileId == "drastic") {
+            var clean = decodedRelPath.replace('\\', '/')
+            while (clean.startsWith("backup/backup/")) {
+                clean = clean.removePrefix("backup/")
+            }
+            while (clean.startsWith("savestates/savestates/")) {
+                clean = clean.removePrefix("savestates/")
+            }
+
+            val ext = "." + clean.substringAfterLast('.', "").lowercase()
+            val isBatterySave = ext in listOf(".dsv", ".sav")
+            val isSaveState = ext in listOf(".dss", ".dst", ".state")
+
+            if (!clean.contains('/')) {
+                return if (isBatterySave) {
+                    File(File(rootDir, "backup"), clean)
+                } else if (isSaveState) {
+                    File(File(rootDir, "savestates"), clean)
+                } else {
+                    File(rootDir, clean)
+                }
+            } else if (clean.startsWith("backup/") && isSaveState) {
+                return File(File(rootDir, "savestates"), clean.removePrefix("backup/"))
+            } else if (clean.startsWith("savestates/") && isBatterySave) {
+                return File(File(rootDir, "backup"), clean.removePrefix("savestates/"))
+            }
+            return File(rootDir, clean)
+        }
+        return File(rootDir, decodedRelPath)
+    }
+
+    private fun migrateDrasticFolderIfNeeded(rootDir: File) {
+        if (!rootDir.exists()) {
+            rootDir.mkdirs()
+        }
+        try {
+            val backupDir = File(rootDir, "backup")
+            val savestatesDir = File(rootDir, "savestates")
+            backupDir.mkdirs()
+            savestatesDir.mkdirs()
+
+            // 1. Fix nested backup/backup created by earlier builds
+            val nestedBackup = File(backupDir, "backup")
+            if (nestedBackup.exists() && nestedBackup.isDirectory) {
+                nestedBackup.listFiles()?.forEach { f ->
+                    if (f.isFile) {
+                        val target = File(backupDir, f.name)
+                        if (!target.exists() || f.lastModified() > target.lastModified()) {
+                            f.renameTo(target)
+                        } else {
+                            f.delete()
+                        }
+                    }
+                }
+                nestedBackup.delete()
+            }
+
+            // 2. Fix nested backup/savestates created by earlier builds
+            val nestedSavestates = File(backupDir, "savestates")
+            if (nestedSavestates.exists() && nestedSavestates.isDirectory) {
+                nestedSavestates.listFiles()?.forEach { f ->
+                    if (f.isFile) {
+                        val target = File(savestatesDir, f.name)
+                        if (!target.exists() || f.lastModified() > target.lastModified()) {
+                            f.renameTo(target)
+                        } else {
+                            f.delete()
+                        }
+                    }
+                }
+                nestedSavestates.delete()
+            }
+
+            val stateExts = listOf(".dss", ".dst", ".state")
+            val saveExts = listOf(".dsv", ".sav")
+
+            // 3. Move misplaced save states (.dss, .dst, .state) from backup/ to savestates/
+            backupDir.listFiles()?.forEach { f ->
+                if (f.isFile && stateExts.any { f.name.endsWith(it, ignoreCase = true) }) {
+                    val target = File(savestatesDir, f.name)
+                    if (!target.exists() || f.lastModified() > target.lastModified()) {
+                        f.renameTo(target)
+                    } else {
+                        f.delete()
+                    }
+                }
+            }
+
+            // 4. Move flat saves (.sav, .dsv) sitting directly in rootDir to backup/
+            rootDir.listFiles()?.forEach { f ->
+                if (f.isFile && saveExts.any { f.name.endsWith(it, ignoreCase = true) }) {
+                    val target = File(backupDir, f.name)
+                    if (!target.exists() || f.lastModified() > target.lastModified()) {
+                        f.renameTo(target)
+                    } else {
+                        f.delete()
+                    }
+                }
+            }
+
+            // 5. Move flat states (.dss, .dst, .state) sitting directly in rootDir to savestates/
+            rootDir.listFiles()?.forEach { f ->
+                if (f.isFile && stateExts.any { f.name.endsWith(it, ignoreCase = true) }) {
+                    val target = File(savestatesDir, f.name)
+                    if (!target.exists() || f.lastModified() > target.lastModified()) {
+                        f.renameTo(target)
+                    } else {
+                        f.delete()
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "DraStic migration check error", e)
+        }
+    }
+
     private suspend fun syncProfileInternal(
         profile: EmulatorProfile,
         driveService: GoogleDriveService,
@@ -231,6 +351,10 @@ class SyncRepository(
             rootDir.mkdirs()
         }
         if (!rootDir.exists()) return 0
+
+        if (profile.id == "drastic") {
+            migrateDrasticFolderIfNeeded(rootDir)
+        }
 
         val localFiles = scannerRepository.scanSaveFilesForProfile(profile)
 
@@ -264,6 +388,7 @@ class SyncRepository(
 
         var syncCount = 0
         val processedRemoteNames = mutableSetOf<String>()
+        val processedLocalPaths = mutableSetOf<String>()
 
         for ((index, item) in localFiles.withIndex()) {
             val remoteFileName = encodeRemoteFileName(item.relativePath)
@@ -271,6 +396,7 @@ class SyncRepository(
 
             val localFile = File(item.localAbsolutePath)
             if (!localFile.exists()) continue
+            processedLocalPaths.add(localFile.absolutePath)
 
             val localLength = localFile.length()
             val currentCanonical = canonicalFiles[remoteFileName]
@@ -379,16 +505,20 @@ class SyncRepository(
 
         // ── Step 5: Download any canonical files that don't exist locally yet ──
         for ((remoteName, canonicalFile) in canonicalFiles) {
-            if (remoteName in processedRemoteNames) continue
             val relPath = decodeRemoteFileName(remoteName)
-            val targetLocalFile = File(rootDir, relPath)
-            if (!targetLocalFile.exists()) {
+            val targetLocalFile = resolveTargetLocalFile(rootDir, profile.id, relPath)
+            if (targetLocalFile.absolutePath in processedLocalPaths) continue
+            if (remoteName in processedRemoteNames && targetLocalFile.exists()) continue
+
+            if (!targetLocalFile.exists() || targetLocalFile.length() != canonicalFile.sizeBytes) {
                 targetLocalFile.parentFile?.mkdirs()
                 val result = driveService.downloadFile(canonicalFile.id, targetLocalFile, canonicalFile.modifiedTimeMillis)
                 if (result.isSuccess) {
                     syncCount++
+                    processedLocalPaths.add(targetLocalFile.absolutePath)
+                    val loggedPath = runCatching { targetLocalFile.relativeTo(rootDir).path }.getOrDefault(targetLocalFile.name)
                     addLog(
-                        profile.name, relPath, SyncAction.DOWNLOAD,
+                        profile.name, loggedPath, SyncAction.DOWNLOAD,
                         "Downloaded new save from cloud"
                     )
                 }

@@ -86,7 +86,16 @@ object RootAccessHelper {
         val suBin = getSuBinary()
         try {
             val cmd = "mkdir -p /storage/emulated/0/DraStic && (mountpoint -q /storage/emulated/0/DraStic || mount -o bind /data/data/com.dsemu.drastic/files/DraStic /storage/emulated/0/DraStic) && chmod 755 /data/data/com.dsemu.drastic /data/data/com.dsemu.drastic/files && chmod -R a+rwX /data/data/com.dsemu.drastic/files/DraStic"
-            Runtime.getRuntime().exec(arrayOf(suBin, "-c", cmd))
+            val process = runCatching {
+                Runtime.getRuntime().exec(arrayOf(suBin, "-mm", "-c", cmd))
+            }.getOrElse {
+                Runtime.getRuntime().exec(arrayOf(suBin, "-c", cmd))
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                process.waitFor(3000, TimeUnit.MILLISECONDS)
+            } else {
+                process.waitFor()
+            }
             Log.d(TAG, "DraStic bind mount ensured at /storage/emulated/0/DraStic")
         } catch (_: Exception) {}
     }
