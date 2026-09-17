@@ -63,13 +63,14 @@ class GoogleDriveAuthManager(
         return _currentAccountEmail.value != null || checkExistingGmsSignIn() != null
     }
 
-    suspend fun startWebLogin(customClientId: String? = null, customClientSecret: String? = null): Boolean {
+    suspend fun startWebLogin(customClientId: String? = null, customClientSecret: String? = null): Result<Boolean> {
         val clientId = when {
             !customClientId.isNullOrBlank() -> customClientId.trim()
-            else -> preferencesManager.customOAuthClientId.first().ifBlank {
-                // Default universal client ID or instruction placeholder
-                "syncmyshit-handheld-client"
-            }
+            else -> preferencesManager.customOAuthClientId.first().trim()
+        }
+
+        if (clientId.isBlank() || clientId == "syncmyshit-handheld-client") {
+            return Result.failure(IllegalArgumentException("Please enter your Google Cloud OAuth Client ID below before signing in."))
         }
 
         val verifier = webOAuth.generateCodeVerifier()
@@ -82,7 +83,8 @@ class GoogleDriveAuthManager(
         }
 
         val authUrl = webOAuth.buildAuthorizationUrl(clientId, challenge, state)
-        return webOAuth.launchAuthorizationInBrowser(context, authUrl)
+        val launched = webOAuth.launchAuthorizationInBrowser(context, authUrl)
+        return if (launched) Result.success(true) else Result.failure(IllegalStateException("Failed to launch web browser. Please check if a browser is installed."))
     }
 
     suspend fun handleOAuthCallback(uri: Uri): Result<String> = withContext(Dispatchers.IO) {
@@ -99,8 +101,9 @@ class GoogleDriveAuthManager(
             val verifier = preferencesManager.oauthCodeVerifier.first()
                 ?: throw IllegalStateException("OAuth verifier missing from session")
 
-            val clientId = preferencesManager.customOAuthClientId.first().ifBlank {
-                "syncmyshit-handheld-client"
+            val clientId = preferencesManager.customOAuthClientId.first().trim()
+            if (clientId.isBlank()) {
+                throw IllegalStateException("Missing Google Cloud OAuth Client ID")
             }
             val clientSecret = preferencesManager.customOAuthClientSecret.first().ifBlank { null }
 

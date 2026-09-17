@@ -75,11 +75,17 @@ class SetupViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun startWebLogin(customClientId: String? = null, customClientSecret: String? = null) {
+    fun startWebLogin(
+        customClientId: String? = null,
+        customClientSecret: String? = null,
+        onError: (String) -> Unit = {}
+    ) {
         viewModelScope.launch {
-            val started = authManager.startWebLogin(customClientId, customClientSecret)
-            if (!started) {
-                _authErrorMessage.value = "Failed to launch browser for Web Login. Please check if a web browser is installed."
+            val result = authManager.startWebLogin(customClientId, customClientSecret)
+            result.onFailure { error ->
+                val msg = error.message ?: "Failed to start Web Login"
+                _authErrorMessage.value = msg
+                onError(msg)
             }
         }
     }

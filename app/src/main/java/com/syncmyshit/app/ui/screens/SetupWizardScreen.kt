@@ -353,7 +353,15 @@ fun SetupWizardScreen(
                         Button(
                             onClick = {
                                 viewModel.setAuthError(null)
-                                viewModel.startWebLogin(customClientId.ifBlank { null })
+                                val activeClientId = customIdInput.ifBlank { customClientId.ifBlank { "" } }
+                                if (activeClientId.isBlank()) {
+                                    showCustomOAuthConfig = true
+                                    viewModel.setAuthError("Google requires a registered OAuth Client ID for Web Login. Please enter your Client ID below (takes 2 minutes to create, 100% free).")
+                                } else {
+                                    viewModel.startWebLogin(activeClientId) {
+                                        showCustomOAuthConfig = true
+                                    }
+                                }
                             },
                             modifier = Modifier.fillMaxWidth().height(52.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = NeonCyan)
@@ -455,45 +463,72 @@ fun SetupWizardScreen(
                                             }
                                         }
                                     }
+                                }
+                            }
+                        }
 
-                                    // Quick 1-minute setup instruction
+                        // Custom client ID configuration toggle
+                        TextButton(
+                            onClick = { showCustomOAuthConfig = !showCustomOAuthConfig },
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        ) {
+                            Icon(Icons.Default.Key, null, modifier = Modifier.size(16.dp), tint = NeonCyan)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                if (showCustomOAuthConfig) "Hide OAuth Client ID Config" else "Enter Google Cloud OAuth Client ID",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = NeonCyan
+                            )
+                        }
+
+                        if (showCustomOAuthConfig) {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = DarkBackground),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    OutlinedTextField(
+                                        value = customIdInput,
+                                        onValueChange = {
+                                            customIdInput = it
+                                            viewModel.updateCustomClientId(it)
+                                        },
+                                        label = { Text("Google Cloud OAuth Client ID") },
+                                        placeholder = { Text("xxxx.apps.googleusercontent.com") },
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+
+                                    OutlinedButton(
+                                        onClick = {
+                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                            clipboard.setPrimaryClip(ClipData.newPlainText("Redirect URI", "com.syncmyshit.app:/oauth2redirect"))
+                                            Toast.makeText(context, "Redirect URI copied!", Toast.LENGTH_SHORT).show()
+                                        },
+                                        modifier = Modifier.fillMaxWidth().height(38.dp)
+                                    ) {
+                                        Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(14.dp), tint = NeonCyan)
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Copy Redirect URI (com.syncmyshit.app:/oauth2redirect)", fontSize = 11.sp, color = NeonCyan)
+                                    }
+
                                     Text(
-                                        text = "How to enable (1 min, 100% free):\n1. Go to console.cloud.google.com\n2. Enable 'Google Drive API'\n3. Go to Credentials > Create Credentials > OAuth Client ID > Android\n4. Paste the Package Name and SHA-1 above.",
+                                        text = "Setup in Google Cloud Console (100% free, 2 mins):\n" +
+                                                "1. Go to console.cloud.google.com\n" +
+                                                "2. Enable 'Google Drive API'\n" +
+                                                "3. Under APIs & Services > Credentials > Create Credentials > OAuth client ID:\n" +
+                                                "   • Choose 'Web application'\n" +
+                                                "   • Under 'Authorized redirect URIs', paste the URI copied above\n" +
+                                                "4. Copy the generated Client ID, paste it above, and tap 'Sign In via Web Browser'!",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = TextMuted,
                                         lineHeight = 16.sp
                                     )
                                 }
-                            }
-                        }
-
-                        // Optional custom client ID configuration
-                        TextButton(
-                            onClick = { showCustomOAuthConfig = !showCustomOAuthConfig },
-                            modifier = Modifier.align(Alignment.CenterHorizontally)
-                        ) {
-                            Icon(Icons.Default.Key, null, modifier = Modifier.size(16.dp), tint = TextSecondary)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                if (showCustomOAuthConfig) "Hide Custom OAuth Client ID" else "Have a Custom OAuth Client ID? Tap here",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TextSecondary
-                            )
-                        }
-
-                        if (showCustomOAuthConfig) {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedTextField(
-                                    value = customIdInput,
-                                    onValueChange = {
-                                        customIdInput = it
-                                        viewModel.updateCustomClientId(it)
-                                    },
-                                    label = { Text("OAuth Client ID (optional)") },
-                                    placeholder = { Text("xxxx.apps.googleusercontent.com") },
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
                             }
                         }
                     }
