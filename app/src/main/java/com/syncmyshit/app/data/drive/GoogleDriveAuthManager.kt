@@ -66,11 +66,9 @@ class GoogleDriveAuthManager(
     suspend fun startWebLogin(customClientId: String? = null, customClientSecret: String? = null): Result<Boolean> {
         val clientId = when {
             !customClientId.isNullOrBlank() -> customClientId.trim()
-            else -> preferencesManager.customOAuthClientId.first().trim()
-        }
-
-        if (clientId.isBlank() || clientId == "syncmyshit-handheld-client") {
-            return Result.failure(IllegalArgumentException("Please enter your Google Cloud OAuth Client ID below before signing in."))
+            else -> preferencesManager.customOAuthClientId.first().trim().ifBlank {
+                WebOAuthManager.DEFAULT_CLIENT_ID
+            }
         }
 
         val verifier = webOAuth.generateCodeVerifier()
@@ -101,13 +99,18 @@ class GoogleDriveAuthManager(
             val verifier = preferencesManager.oauthCodeVerifier.first()
                 ?: throw IllegalStateException("OAuth verifier missing from session")
 
-            val clientId = preferencesManager.customOAuthClientId.first().trim()
-            if (clientId.isBlank()) {
-                throw IllegalStateException("Missing Google Cloud OAuth Client ID")
+            val clientId = preferencesManager.customOAuthClientId.first().trim().ifBlank {
+                WebOAuthManager.DEFAULT_CLIENT_ID
             }
             val clientSecret = preferencesManager.customOAuthClientSecret.first().ifBlank { null }
 
-            val tokens = webOAuth.exchangeCodeForTokens(code, verifier, clientId, clientSecret).getOrThrow()
+            val redirectUri = if (uri.scheme == "com.syncmyshit.app") {
+                WebOAuthManager.REDIRECT_URI
+            } else {
+                "${uri.scheme}:${uri.path ?: "/oauth2redirect"}"
+            }
+
+            val tokens = webOAuth.exchangeCodeForTokens(code, verifier, clientId, clientSecret, redirectUri).getOrThrow()
             preferencesManager.saveOAuthTokens(tokens.accessToken, tokens.refreshToken, tokens.expiresInSeconds)
             preferencesManager.clearOAuthPkceSession()
 
@@ -127,7 +130,9 @@ class GoogleDriveAuthManager(
 
         if (!token.isNullOrBlank() && !refreshToken.isNullOrBlank()) {
             // Attempt a refresh if close to expiry or return existing
-            val clientId = preferencesManager.customOAuthClientId.first()
+            val clientId = preferencesManager.customOAuthClientId.first().trim().ifBlank {
+                WebOAuthManager.DEFAULT_CLIENT_ID
+            }
             val clientSecret = preferencesManager.customOAuthClientSecret.first().ifBlank { null }
             val refreshed = webOAuth.refreshAccessToken(refreshToken, clientId, clientSecret).getOrNull()
             if (refreshed != null) {
@@ -156,9 +161,10 @@ class GoogleDriveAuthManager(
                 Scope(DriveScopes.DRIVE_APPDATA)
             )
 
-        if (!customClientId.isNullOrBlank()) {
-            gsoBuilder.requestIdToken(customClientId)
-        }
+        val activeClientId = customClientId?.ifBlank { null }
+            ?: WebOAuthManager.DEFAULT_CLIENT_ID
+
+        gsoBuilder.requestIdToken(activeClientId)
 
         return GoogleSignIn.getClient(context, gsoBuilder.build())
     }

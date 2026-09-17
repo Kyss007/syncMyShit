@@ -27,6 +27,7 @@ class WebOAuthManager(private val context: Context) {
     private val secureRandom = SecureRandom()
 
     companion object {
+        const val DEFAULT_CLIENT_ID = "590448604558-6q54r4h31so9md160o2dlrpskna4sh7f.apps.googleusercontent.com"
         const val REDIRECT_URI = "com.syncmyshit.app:/oauth2redirect"
         const val AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
         const val TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
@@ -54,14 +55,16 @@ class WebOAuthManager(private val context: Context) {
     }
 
     fun buildAuthorizationUrl(
-        clientId: String,
+        clientId: String = DEFAULT_CLIENT_ID,
         codeChallenge: String,
-        state: String
+        state: String,
+        redirectUri: String = REDIRECT_URI
     ): String {
+        val effectiveClientId = clientId.trim().ifBlank { DEFAULT_CLIENT_ID }
         val scopes = "$SCOPE_DRIVE_FILE $SCOPE_USER_EMAIL"
         return Uri.parse(AUTH_ENDPOINT).buildUpon()
-            .appendQueryParameter("client_id", clientId.trim())
-            .appendQueryParameter("redirect_uri", REDIRECT_URI)
+            .appendQueryParameter("client_id", effectiveClientId)
+            .appendQueryParameter("redirect_uri", redirectUri)
             .appendQueryParameter("response_type", "code")
             .appendQueryParameter("scope", scopes)
             .appendQueryParameter("code_challenge", codeChallenge)
@@ -93,16 +96,18 @@ class WebOAuthManager(private val context: Context) {
     suspend fun exchangeCodeForTokens(
         code: String,
         codeVerifier: String,
-        clientId: String,
-        clientSecret: String? = null
+        clientId: String = DEFAULT_CLIENT_ID,
+        clientSecret: String? = null,
+        redirectUri: String = REDIRECT_URI
     ): Result<OAuthTokenResponse> = withContext(Dispatchers.IO) {
         runCatching {
+            val effectiveClientId = clientId.trim().ifBlank { DEFAULT_CLIENT_ID }
             val formBuilder = FormBody.Builder()
-                .add("client_id", clientId.trim())
+                .add("client_id", effectiveClientId)
                 .add("code", code.trim())
                 .add("code_verifier", codeVerifier.trim())
                 .add("grant_type", "authorization_code")
-                .add("redirect_uri", REDIRECT_URI)
+                .add("redirect_uri", redirectUri)
 
             if (!clientSecret.isNullOrBlank()) {
                 formBuilder.add("client_secret", clientSecret.trim())
@@ -137,12 +142,13 @@ class WebOAuthManager(private val context: Context) {
 
     suspend fun refreshAccessToken(
         refreshToken: String,
-        clientId: String,
+        clientId: String = DEFAULT_CLIENT_ID,
         clientSecret: String? = null
     ): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
+            val effectiveClientId = clientId.trim().ifBlank { DEFAULT_CLIENT_ID }
             val formBuilder = FormBody.Builder()
-                .add("client_id", clientId.trim())
+                .add("client_id", effectiveClientId)
                 .add("refresh_token", refreshToken.trim())
                 .add("grant_type", "refresh_token")
 

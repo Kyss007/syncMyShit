@@ -109,7 +109,7 @@ class MainActivity : ComponentActivity() {
 
     private fun handleOAuthIntent(intent: Intent?) {
         val uri = intent?.data ?: return
-        if (uri.scheme == "com.syncmyshit.app") {
+        if (uri.scheme == "com.syncmyshit.app" || uri.scheme?.startsWith("com.googleusercontent.apps") == true) {
             val app = application as SyncApplication
             lifecycleScope.launch {
                 val result = app.authManager.handleOAuthCallback(uri)

@@ -353,14 +353,9 @@ fun SetupWizardScreen(
                         Button(
                             onClick = {
                                 viewModel.setAuthError(null)
-                                val activeClientId = customIdInput.ifBlank { customClientId.ifBlank { "" } }
-                                if (activeClientId.isBlank()) {
+                                val activeClientId = customIdInput.ifBlank { customClientId.ifBlank { null } }
+                                viewModel.startWebLogin(activeClientId) {
                                     showCustomOAuthConfig = true
-                                    viewModel.setAuthError("Google requires a registered OAuth Client ID for Web Login. Please enter your Client ID below (takes 2 minutes to create, 100% free).")
-                                } else {
-                                    viewModel.startWebLogin(activeClientId) {
-                                        showCustomOAuthConfig = true
-                                    }
                                 }
                             },
                             modifier = Modifier.fillMaxWidth().height(52.dp),
