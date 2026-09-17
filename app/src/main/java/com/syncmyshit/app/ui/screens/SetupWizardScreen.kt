@@ -1,6 +1,10 @@
 package com.syncmyshit.app.ui.screens
 
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -23,45 +27,62 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Games
+import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.common.api.ApiException
 import com.syncmyshit.app.SyncApplication
 import com.syncmyshit.app.ui.components.dpadFocusable
 import com.syncmyshit.app.ui.theme.DarkBackground
 import com.syncmyshit.app.ui.theme.DarkBorder
 import com.syncmyshit.app.ui.theme.DarkSurface
+import com.syncmyshit.app.ui.theme.DarkSurfaceElevated
 import com.syncmyshit.app.ui.theme.NeonCyan
 import com.syncmyshit.app.ui.theme.NeonPurple
 import com.syncmyshit.app.ui.theme.StatusGreen
+import com.syncmyshit.app.ui.theme.StatusRed
+import com.syncmyshit.app.ui.theme.StatusYellow
 import com.syncmyshit.app.ui.theme.TextMuted
 import com.syncmyshit.app.ui.theme.TextPrimary
 import com.syncmyshit.app.ui.theme.TextSecondary
 import com.syncmyshit.app.ui.viewmodel.SetupViewModel
+import com.syncmyshit.app.utils.SigningUtils
 import com.syncmyshit.app.utils.StorageAccessHelper
 
 @Composable
@@ -77,8 +98,13 @@ fun SetupWizardScreen(
     val hasStoragePermission by viewModel.hasStoragePermission.collectAsState()
     val hasUsagePermission by viewModel.hasUsagePermission.collectAsState()
     val signedInAccount by viewModel.signedInAccount.collectAsState()
+    val authError by viewModel.authErrorMessage.collectAsState()
+    val customClientId by viewModel.customOAuthClientId.collectAsState("")
     val discoveredList by viewModel.discoveredEmulators.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
+
+    var customIdInput by remember(customClientId) { mutableStateOf(customClientId) }
+    var showCustomOAuthConfig by remember { mutableStateOf(false) }
 
     // Re-check permissions when returning from settings
     DisposableEffect(lifecycleOwner) {
@@ -96,14 +122,24 @@ fun SetupWizardScreen(
     val signInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-            runCatching {
-                val account = task.result
-                if (account != null) {
-                    viewModel.onSignInSuccess(account)
-                }
+        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        try {
+            val account = task.getResult(ApiException::class.java)
+            if (account != null) {
+                viewModel.onSignInSuccess(account)
             }
+        } catch (e: ApiException) {
+            val reason = when (e.statusCode) {
+                10 -> "Google Developer Error 10 (DEVELOPER_ERROR): This APK's SHA-1 certificate is not registered in Google Cloud Console OAuth 2.0 Credentials. Follow the 1-minute guide below to link it."
+                12500 -> "Google Sign-In failed (Code 12500). Please check your internet connection or Google Play Services."
+                12501 -> "Sign-in was cancelled."
+                12502 -> "Sign-in currently in progress."
+                7 -> "Network error: Unable to contact Google authentication servers."
+                else -> "Google Sign-In error (Code ${e.statusCode}): ${e.message ?: "Authentication failed"}"
+            }
+            viewModel.setAuthError(reason)
+        } catch (e: Exception) {
+            viewModel.setAuthError("Sign-in error: ${e.message ?: e.javaClass.simpleName}")
         }
     }
 
@@ -310,8 +346,9 @@ fun SetupWizardScreen(
                     } else {
                         Button(
                             onClick = {
+                                viewModel.setAuthError(null)
                                 val app = context.applicationContext as SyncApplication
-                                val intent = app.authManager.getSignInIntent()
+                                val intent = app.authManager.getSignInIntent(customClientId.ifBlank { null })
                                 signInLauncher.launch(intent)
                             },
                             modifier = Modifier.fillMaxWidth().height(50.dp),
@@ -321,22 +358,146 @@ fun SetupWizardScreen(
                             Spacer(modifier = Modifier.width(10.dp))
                             Text("Sign In with Google", color = DarkSurface, fontWeight = FontWeight.Bold)
                         }
+
+                        // Auth Error Alert & Troubleshooting
+                        if (authError != null) {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = DarkBackground),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Warning, null, tint = StatusYellow, modifier = Modifier.size(20.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Google Sign-In Needs Credentials", fontWeight = FontWeight.Bold, color = StatusYellow)
+                                    }
+
+                                    Text(
+                                        text = authError!!,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TextSecondary
+                                    )
+
+                                    val currentSha1 = remember { SigningUtils.getAppSha1(context) }
+                                    val currentPkg = context.packageName
+
+                                    // Copyable details box
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text("Package Name:", style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                                                    Text(currentPkg, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = NeonCyan)
+                                                }
+                                                IconButton(
+                                                    onClick = {
+                                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                                        clipboard.setPrimaryClip(ClipData.newPlainText("Package Name", currentPkg))
+                                                        Toast.makeText(context, "Package Name copied!", Toast.LENGTH_SHORT).show()
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(Icons.Default.ContentCopy, "Copy", tint = NeonCyan, modifier = Modifier.size(16.dp))
+                                                }
+                                            }
+
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text("SHA-1 Fingerprint:", style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                                                    Text(currentSha1, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = NeonCyan, fontSize = 11.sp)
+                                                }
+                                                IconButton(
+                                                    onClick = {
+                                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                                        clipboard.setPrimaryClip(ClipData.newPlainText("SHA-1 Fingerprint", currentSha1))
+                                                        Toast.makeText(context, "SHA-1 Fingerprint copied!", Toast.LENGTH_SHORT).show()
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(Icons.Default.ContentCopy, "Copy", tint = NeonCyan, modifier = Modifier.size(16.dp))
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Quick 1-minute setup instruction
+                                    Text(
+                                        text = "How to enable (1 min, 100% free):\n1. Go to console.cloud.google.com\n2. Enable 'Google Drive API'\n3. Go to Credentials > Create Credentials > OAuth Client ID > Android\n4. Paste the Package Name and SHA-1 above.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TextMuted,
+                                        lineHeight = 16.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        // Optional custom client ID configuration
+                        TextButton(
+                            onClick = { showCustomOAuthConfig = !showCustomOAuthConfig },
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        ) {
+                            Icon(Icons.Default.Key, null, modifier = Modifier.size(16.dp), tint = TextSecondary)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                if (showCustomOAuthConfig) "Hide Custom OAuth Client ID" else "Have a Custom OAuth Client ID? Tap here",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary
+                            )
+                        }
+
+                        if (showCustomOAuthConfig) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(
+                                    value = customIdInput,
+                                    onValueChange = {
+                                        customIdInput = it
+                                        viewModel.updateCustomClientId(it)
+                                    },
+                                    label = { Text("OAuth Client ID (optional)") },
+                                    placeholder = { Text("xxxx.apps.googleusercontent.com") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
                     }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         OutlinedButton(onClick = { viewModel.prevStep() }) {
                             Text("Back", color = TextSecondary)
                         }
 
-                        Button(
-                            onClick = { viewModel.nextStep() },
-                            enabled = signedInAccount != null,
-                            colors = ButtonDefaults.buttonColors(containerColor = NeonCyan)
-                        ) {
-                            Text("Continue to Step 3", color = DarkSurface, fontWeight = FontWeight.Bold)
+                        if (signedInAccount != null) {
+                            Button(
+                                onClick = { viewModel.nextStep() },
+                                colors = ButtonDefaults.buttonColors(containerColor = NeonCyan)
+                            ) {
+                                Text("Continue to Step 3", color = DarkSurface, fontWeight = FontWeight.Bold)
+                            }
+                        } else {
+                            TextButton(onClick = { viewModel.nextStep() }) {
+                                Text("Skip for now →", color = TextSecondary)
+                            }
                         }
                     }
                 }

@@ -31,6 +31,11 @@ class SetupViewModel(application: Application) : AndroidViewModel(application) {
     private val _signedInAccount = MutableStateFlow<GoogleSignInAccount?>(null)
     val signedInAccount: StateFlow<GoogleSignInAccount?> = _signedInAccount.asStateFlow()
 
+    private val _authErrorMessage = MutableStateFlow<String?>(null)
+    val authErrorMessage: StateFlow<String?> = _authErrorMessage.asStateFlow()
+
+    val customOAuthClientId = preferencesManager.customOAuthClientId
+
     private val _discoveredEmulators = MutableStateFlow<List<EmulatorProfile>>(emptyList())
     val discoveredEmulators: StateFlow<List<EmulatorProfile>> = _discoveredEmulators.asStateFlow()
 
@@ -53,8 +58,19 @@ class SetupViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onSignInSuccess(account: GoogleSignInAccount) {
         _signedInAccount.value = account
+        _authErrorMessage.value = null
         viewModelScope.launch {
             preferencesManager.setGoogleAccount(account.email)
+        }
+    }
+
+    fun setAuthError(message: String?) {
+        _authErrorMessage.value = message
+    }
+
+    fun updateCustomClientId(clientId: String) {
+        viewModelScope.launch {
+            preferencesManager.setCustomOAuthCredentials(clientId.trim(), "")
         }
     }
 

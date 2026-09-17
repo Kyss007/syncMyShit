@@ -47,18 +47,19 @@ If your Android handheld has Google Play Services installed (standard on Odin 2,
 6. Under **Test users**, add your own Google email address (important while your project is in testing mode).
 7. Save and finish the wizard.
 
-#### 4. Create OAuth 2.0 Credentials
+#### 4. Create OAuth 2.0 Credentials (Takes 30 seconds)
 1. Go to **APIs & Services** > **Credentials**.
 2. Click **+ CREATE CREDENTIALS** > **OAuth client ID**.
-3. Application type:
-   - Choose **Android** if registering your device SHA-1 fingerprint (Package: `com.syncmyshit.app`).
-   - Or choose **Web application** to get an OAuth Client ID usable across all devices.
-4. Copy the generated **Client ID** (looks like `xxxxxxxxxxxx-xxxxxxxxxxxxxxxx.apps.googleusercontent.com`).
+3. Application type: Select **Android**.
+   - **Package name**: `com.syncmyshit.app`
+   - **SHA-1 certificate fingerprint**: `03:16:B2:C3:98:4E:4C:C4:8C:29:3C:49:B6:07:2E:54:F0:D0:A2:82`
+4. Click **Create**!
 
-#### 5. Enter Client ID into syncMyShit
-1. In **syncMyShit**, open **Settings** > **Custom OAuth ID**.
-2. Paste your **Client ID** into the input field and tap **Save Credentials**.
-3. Now tap **Sign In with Google**.
+> [!TIP]
+> Once created, **1-Tap Google Sign-In** on your handheld will immediately work without entering any IDs or passwords! Google Play Services verifies the package and SHA-1 automatically.
+
+#### Alternative: Web application Client ID
+If you prefer not to register an Android client ID, you can create a **Web application** client ID in Google Cloud Console, copy the Client ID, and paste it into **Settings** > **Custom OAuth Client ID** in **syncMyShit**.
 
 ---
 
