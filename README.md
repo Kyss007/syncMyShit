@@ -4,25 +4,25 @@
 ### Automagic Cloud Save Sync for Android Retro Emulation Handhelds
 
 [![Android](https://img.shields.io/badge/Platform-Android%208.0%2B-brightgreen?logo=android)](https://www.android.com/)
-[![Download APK](https://img.shields.io/badge/Download-Latest%20Release%20APK-00E5FF?style=for-the-badge&logo=android)](https://github.com/Kyss007/syncMyShit/releases/latest)
-[![Kotlin](https://img.shields.io/badge/Language-Kotlin%201.9-purple?logo=kotlin)](https://kotlinlang.org/)
-[![Google Drive](https://img.shields.io/badge/Cloud-Google%20Drive%20v3-yellow?logo=googledrive)](https://developers.google.com/drive)
+[![Linux](https://img.shields.io/badge/Platform-Linux%20x64-FCC624?logo=linux&logoColor=black)](https://github.com/Kyss007/syncMyShit/releases)
+[![Windows](https://img.shields.io/badge/Platform-Windows%20x64-0078D6?logo=windows&logoColor=white)](https://github.com/Kyss007/syncMyShit/releases)
+[![Download](https://img.shields.io/badge/Download-Latest%20Releases-00E5FF?style=for-the-badge)](https://github.com/Kyss007/syncMyShit/releases/latest)
 [![License: Unlicense](https://img.shields.io/badge/License-The%20Unlicense%20(Public%20Domain)-green.svg)](LICENSE)
 [![Cost](https://img.shields.io/badge/Cost-100%25%20Free%20Forever-success.svg)](LICENSE)
 
 > [!CAUTION]
-> **EARLY EXPERIMENTAL / UNTESTED SOFTWARE**
-> This application is in early development and has **NOT** been tested on physical handheld devices yet.
-> Background services, save detection, and Scoped Storage integrations may have bugs.
-> **Always make manual backups of your save files** before running or testing this application.
+> **EARLY EXPERIMENTAL SOFTWARE**
+> Handheld Android testing is currently underway on Retroid Pocket 3+. Desktop versions are in active testing.
+> **Always make manual backups of your save files** before running or testing.
 
-*Cloud save synchronization for Android retro emulation devices using Google Drive.*
+*Automagic cloud save synchronization for Android retro emulation handhelds, Linux (Steam Deck / PC), and Windows.*
 
 ---
 
-### 📥 [Download Release APKs](https://github.com/Kyss007/syncMyShit/releases)
-- **[GitHub Releases](https://github.com/Kyss007/syncMyShit/releases)** (Automated builds from CI)
-- **Installation**: Download the `.apk` directly to your Android device, tap to install (allow *"Install unknown apps"* if prompted), and proceed through the setup wizard.
+### 📥 [Download Latest Releases](https://github.com/Kyss007/syncMyShit/releases)
+- 📱 **Android Handhelds**: `syncMyShit-v*.apk` (Retroid Pocket, Odin, Anbernic, phones)
+- 🐧 **Linux / Steam Deck**: `syncMyShit-linux-x64` (Single standalone binary)
+- 🪟 **Windows PC**: `syncMyShit-windows-x64.exe` (Single standalone executable)
 
 ---
 
