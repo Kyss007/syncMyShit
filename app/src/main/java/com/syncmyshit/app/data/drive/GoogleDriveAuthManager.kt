@@ -176,18 +176,22 @@ class GoogleDriveAuthManager(
         return false
     }
 
-    suspend fun signOut(onComplete: () -> Unit = {}) {
-        preferencesManager.clearOAuthTokens()
-        _currentAccountEmail.value = null
-        _currentAccount.value = null
+    fun signOut(onComplete: () -> Unit = {}) {
+        scope.launch {
+            preferencesManager.clearOAuthTokens()
+            _currentAccountEmail.value = null
+            _currentAccount.value = null
 
-        runCatching {
-            val client = getSignInClient()
-            client.signOut().addOnCompleteListener {
-                onComplete()
+            withContext(Dispatchers.Main) {
+                runCatching {
+                    val client = getSignInClient()
+                    client.signOut().addOnCompleteListener {
+                        onComplete()
+                    }
+                }.onFailure {
+                    onComplete()
+                }
             }
-        }.onFailure {
-            onComplete()
         }
     }
 }
