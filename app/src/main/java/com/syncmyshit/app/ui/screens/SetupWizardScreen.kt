@@ -1,0 +1,437 @@
+package com.syncmyshit.app.ui.screens
+
+import android.app.Activity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Games
+import androidx.compose.material.icons.filled.RocketLaunch
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.syncmyshit.app.SyncApplication
+import com.syncmyshit.app.ui.components.dpadFocusable
+import com.syncmyshit.app.ui.theme.DarkBackground
+import com.syncmyshit.app.ui.theme.DarkBorder
+import com.syncmyshit.app.ui.theme.DarkSurface
+import com.syncmyshit.app.ui.theme.NeonCyan
+import com.syncmyshit.app.ui.theme.NeonPurple
+import com.syncmyshit.app.ui.theme.StatusGreen
+import com.syncmyshit.app.ui.theme.TextMuted
+import com.syncmyshit.app.ui.theme.TextPrimary
+import com.syncmyshit.app.ui.theme.TextSecondary
+import com.syncmyshit.app.ui.viewmodel.SetupViewModel
+import com.syncmyshit.app.utils.StorageAccessHelper
+
+@Composable
+fun SetupWizardScreen(
+    viewModel: SetupViewModel,
+    onSetupComplete: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    val currentStep by viewModel.currentStep.collectAsState()
+    val hasStoragePermission by viewModel.hasStoragePermission.collectAsState()
+    val hasUsagePermission by viewModel.hasUsagePermission.collectAsState()
+    val signedInAccount by viewModel.signedInAccount.collectAsState()
+    val discoveredList by viewModel.discoveredEmulators.collectAsState()
+    val isScanning by viewModel.isScanning.collectAsState()
+
+    // Re-check permissions when returning from settings
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshPermissions()
+                viewModel.checkAuth()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // Google Sign In Launcher
+    val signInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+            runCatching {
+                val account = task.result
+                if (account != null) {
+                    viewModel.onSignInSuccess(account)
+                }
+            }
+        }
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(DarkBackground)
+            .padding(20.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
+    ) {
+        // App Branding
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = "syncMyShit",
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Bold,
+                color = NeonCyan
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Automagic Save Sync Setup",
+                style = MaterialTheme.typography.bodyLarge,
+                color = TextSecondary
+            )
+        }
+
+        // Stepper Progress Indicators
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            StepIndicator(step = 1, currentStep = currentStep, label = "Permissions")
+            Spacer(modifier = Modifier.width(8.dp))
+            Box(modifier = Modifier.width(30.dp).height(2.dp).background(if (currentStep > 1) NeonCyan else DarkBorder))
+            Spacer(modifier = Modifier.width(8.dp))
+            StepIndicator(step = 2, currentStep = currentStep, label = "Drive")
+            Spacer(modifier = Modifier.width(8.dp))
+            Box(modifier = Modifier.width(30.dp).height(2.dp).background(if (currentStep > 2) NeonCyan else DarkBorder))
+            Spacer(modifier = Modifier.width(8.dp))
+            StepIndicator(step = 3, currentStep = currentStep, label = "Discovery")
+        }
+
+        // STEP 1: Permissions
+        if (currentStep == 1) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = DarkSurface)
+            ) {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = "Step 1: Grant Permissions",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "To automagically find save files and detect when you start or finish playing, syncMyShit requires two standard Android permissions:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
+                    )
+
+                    // Permission 1: All Files Access
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = DarkBackground),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FolderOpen,
+                                contentDescription = null,
+                                tint = if (hasStoragePermission) StatusGreen else NeonCyan,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "All Files Access",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "Required to read & write saves in emulator directories across internal storage and SD cards.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = TextSecondary
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            if (hasStoragePermission) {
+                                Icon(Icons.Default.CheckCircle, null, tint = StatusGreen, modifier = Modifier.size(24.dp))
+                            } else {
+                                Button(
+                                    onClick = { context.startActivity(StorageAccessHelper.getAllFilesAccessIntent(context)) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = NeonCyan)
+                                ) {
+                                    Text("Grant", color = DarkSurface)
+                                }
+                            }
+                        }
+                    }
+
+                    // Permission 2: Usage Access
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = DarkBackground),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Games,
+                                contentDescription = null,
+                                tint = if (hasUsagePermission) StatusGreen else NeonPurple,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Usage Stats Access",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "Detects when you open or exit games so it can sync before and after playing automagically.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = TextSecondary
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            if (hasUsagePermission) {
+                                Icon(Icons.Default.CheckCircle, null, tint = StatusGreen, modifier = Modifier.size(24.dp))
+                            } else {
+                                Button(
+                                    onClick = { context.startActivity(StorageAccessHelper.getUsageStatsSettingsIntent()) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = NeonPurple)
+                                ) {
+                                    Text("Grant", color = DarkSurface)
+                                }
+                            }
+                        }
+                    }
+
+                    Button(
+                        onClick = { viewModel.nextStep() },
+                        enabled = hasStoragePermission,
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = NeonCyan)
+                    ) {
+                        Text("Continue to Step 2", color = DarkSurface, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(Icons.Default.ArrowForward, null, tint = DarkSurface)
+                    }
+                }
+            }
+        }
+
+        // STEP 2: Google Drive
+        if (currentStep == 2) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = DarkSurface)
+            ) {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = "Step 2: Connect Google Drive",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Your save files will be kept in a private folder named 'syncMyShit' on your Google Drive. Everything is encrypted and private to your account.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
+                    )
+
+                    if (signedInAccount != null) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = DarkBackground),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.CheckCircle, null, tint = StatusGreen, modifier = Modifier.size(32.dp))
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text("Connected Successfully", fontWeight = FontWeight.Bold, color = StatusGreen)
+                                    Text(signedInAccount!!.email ?: "", color = TextSecondary)
+                                }
+                            }
+                        }
+                    } else {
+                        Button(
+                            onClick = {
+                                val app = context.applicationContext as SyncApplication
+                                val intent = app.authManager.getSignInIntent()
+                                signInLauncher.launch(intent)
+                            },
+                            modifier = Modifier.fillMaxWidth().height(50.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = NeonCyan)
+                        ) {
+                            Icon(Icons.Default.Cloud, null, tint = DarkSurface)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("Sign In with Google", color = DarkSurface, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        OutlinedButton(onClick = { viewModel.prevStep() }) {
+                            Text("Back", color = TextSecondary)
+                        }
+
+                        Button(
+                            onClick = { viewModel.nextStep() },
+                            enabled = signedInAccount != null,
+                            colors = ButtonDefaults.buttonColors(containerColor = NeonCyan)
+                        ) {
+                            Text("Continue to Step 3", color = DarkSurface, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
+        // STEP 3: Auto-Discovery & Finish
+        if (currentStep == 3) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = DarkSurface)
+            ) {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = "Step 3: Save File Discovery",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    val saveTotal = discoveredList.sumOf { it.fileCount }
+                    Text(
+                        text = "We scanned your handheld device and detected ${discoveredList.size} systems with $saveTotal save files ready to sync!",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
+                    )
+
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        discoveredList.take(6).forEach { profile ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(profile.name, color = TextPrimary, fontWeight = FontWeight.Medium)
+                                Text("${profile.fileCount} saves", color = NeonCyan)
+                            }
+                        }
+                        if (discoveredList.size > 6) {
+                            Text("+ ${discoveredList.size - 6} more emulators…", color = TextMuted)
+                        }
+                    }
+
+                    Button(
+                        onClick = {
+                            viewModel.finishSetup(onSetupComplete)
+                        },
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = NeonCyan)
+                    ) {
+                        Icon(Icons.Default.RocketLaunch, null, tint = DarkSurface)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text("Finish & Start Automagic Sync", color = DarkSurface, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StepIndicator(step: Int, currentStep: Int, label: String) {
+    val isActive = currentStep == step
+    val isDone = currentStep > step
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(
+                    if (isDone) StatusGreen
+                    else if (isActive) NeonCyan
+                    else DarkBorder
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            if (isDone) {
+                Icon(Icons.Default.CheckCircle, null, tint = DarkBackground, modifier = Modifier.size(16.dp))
+            } else {
+                Text(
+                    text = "$step",
+                    color = if (isActive) DarkBackground else TextSecondary,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (isActive || isDone) TextPrimary else TextMuted
+        )
+    }
+}

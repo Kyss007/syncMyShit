@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">syncMyShit</string>
+    <string name="app_tagline">Automagic Retro Cloud Save Sync</string>
+    <string name="sync_status_idle">Up to date</string>
+    <string name="sync_status_syncing">Syncing saves to Google Drive…</string>
+    <string name="sync_status_error">Sync error</string>
+    <string name="sync_status_success">Last synced just now</string>
+    
+    <string name="nav_dashboard">Dashboard</string>
+    <string name="nav_emulators">Emulators &amp; Games</string>
+    <string name="nav_history">Sync History</string>
+    <string name="nav_settings">Settings</string>
+
+    <string name="notif_channel_sync">Cloud Save Sync</string>
+    <string name="notif_channel_sync_desc">Notifications when save files are uploaded or downloaded</string>
+    <string name="notif_channel_service">Background Game Watcher</string>
+    <string name="notif_channel_service_desc">Keeps background sync active when launching and closing games</string>
+</resources>
