@@ -41,7 +41,7 @@ object EmulatorRegistry {
                 "Android/data/org.ppsspp.ppsspp/files/PSP/SAVEDATA",
                 "Android/data/org.ppsspp.ppssppgold/files/PSP/SAVEDATA"
             ),
-            fileExtensions = listOf(".bin", ".sfo", ".png", ".ppst"),
+            fileExtensions = listOf(".bin", ".sfo", ".ppst"),
             driveSubfolder = "PPSSPP"
         ),
 
@@ -106,7 +106,7 @@ object EmulatorRegistry {
                 "Android/data/org.vita3k.emulator/files/vita3k/ux0/user/00/savedata",
                 "vita3k/ux0/user/00/savedata"
             ),
-            fileExtensions = listOf(".bin", ".dat", ".png"),
+            fileExtensions = listOf(".bin", ".dat"),
             driveSubfolder = "Vita3K"
         ),
 
@@ -121,7 +121,7 @@ object EmulatorRegistry {
                 "Android/data/aenu.aps3e/files/dev_hdd0/home/00000001/savedata",
                 "aps3e/savedata"
             ),
-            fileExtensions = listOf(".bin", ".dat", ".png"),
+            fileExtensions = listOf(".bin", ".dat"),
             driveSubfolder = "PS3_aPS3e"
         ),
 
@@ -165,7 +165,7 @@ object EmulatorRegistry {
                 "Android/data/info.cemu.cemu/files/mlc01/usr/save",
                 "cemu/mlc01/usr/save"
             ),
-            fileExtensions = listOf(".bin", ".dat", ".txt"),
+            fileExtensions = listOf(".bin", ".dat"),
             driveSubfolder = "WiiU_Cemu"
         ),
 
@@ -271,13 +271,18 @@ object EmulatorRegistry {
                 "Emulation/saves/nds",
                 "Emulation/roms/nds",
                 "RetroArch/saves",
-                "RetroArch/saves/DraStic",
                 "Android/data/com.dsemu.drastic/files/backup",
                 "Android/data/com.dsemu.drastic/files/savestates",
                 "Android/data/com.dsemu.drastic64/files/backup",
                 "Android/data/com.anbernic.drastic/files/backup",
+                "Android/data/com.anbernic.drastic64/files/backup",
+                "Android/data/com.anbernic.drastic/files",
+                "Android/data/com.anbernic.drastic64/files",
                 "Android/data/com.drastic.ds/files/backup",
-                "Android/data/com.drastic.ds/files"
+                "Android/data/com.drastic.ds/files",
+                "backup",
+                "saves/nds",
+                "Saves/nds"
             ),
             fileExtensions = listOf(".dsv", ".dss", ".sav", ".state", ".dst"),
             driveSubfolder = "DraStic"
@@ -492,7 +497,7 @@ object EmulatorRegistry {
                 "Android/data/com.winlator/files",
                 "Winlator"
             ),
-            fileExtensions = listOf(".sav", ".dat", ".ini"),
+            fileExtensions = listOf(".sav", ".dat"),
             driveSubfolder = "Winlator_PC"
         ),
 
@@ -531,7 +536,7 @@ object EmulatorRegistry {
             category = ProfileCategory.EMULATOR,
             packageNames = listOf("be.codedreams.pixl8", "io.wip.pico8", "me.dt2dev.infinity"),
             candidatePaths = listOf("pico-8/cdata", "Android/data/be.codedreams.pixl8/files"),
-            fileExtensions = listOf(".p8", ".png", ".txt"),
+            fileExtensions = listOf(".p8"),
             driveSubfolder = "PICO8"
         ),
 

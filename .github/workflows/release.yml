@@ -89,11 +89,13 @@ jobs:
             - **[syncMyShit-${{ steps.prep.outputs.release_tag }}.apk](https://github.com/Kyss007/syncMyShit/releases/download/${{ steps.prep.outputs.release_tag }}/syncMyShit-${{ steps.prep.outputs.release_tag }}.apk)** (Ready to install)
             
             #### 🌟 Highlights:
+            - **Multi-Device Sync (Newest Wins)**: When multiple devices sync the same save, the newest version automatically wins and propagates to every other device on its next sync. All older versions are archived in `_history/` — nothing is ever deleted.
+            - **Save Files Only**: Fixed a bug where PNGs, config files, and other unrelated data were being uploaded. Only proper save file extensions (`.sav`, `.srm`, `.state`, `.dsv`, etc.) are synced per emulator.
             - **Pre-Play & Post-Play Automagic Sync**: Checks Google Drive before you play, uploads save files right after you quit.
             - **Full Scoped Storage Support**: Works seamlessly with **DraStic**, **Dolphin**, **AetherSX2**, and any emulator inside `Android/data/` using SAF and Shizuku.
             - **All CocoonFE Emulators & Systems Supported**: Over 125 platforms and 140+ emulator package variants pre-configured out of the box (RetroArch, PPSSPP, Dolphin, DuckStation, Vita3K, Yuzu/Suyu/Sudachi, DraStic, Broglia suite, recomps, ports, etc.).
             - **Custom Paths**: Add any directory, recomp, or standalone game directly in the app.
-            - **Zero Save-Loss Protection**: Timestamped local backups (`.syncmyshit_backups/`) and cloud snapshots (`syncMyShit/_backups/`) prevent lost progress.
+            - **Zero Save-Loss Protection**: Timestamped local backups (`.syncmyshit_backups/`) and full cloud history (`syncMyShit/<emulator>/_history/`) prevent lost progress across all devices.
             - **100% Free & Dedicated to the Public Domain** (The Unlicense).
 
       - name: Upload Artifact (for workflow_dispatch or PRs)

@@ -167,6 +167,32 @@ class GoogleDriveService(
         }
     }
 
+    /** Lists only subfolders (not files) within a given Drive folder. */
+    suspend fun listSubfolders(parentFolderId: String): Result<List<DriveFileInfo>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val drive = getDrive()
+            val q = "'$parentFolderId' in parents and trashed = false and mimeType = 'application/vnd.google-apps.folder'"
+            val result = drive.files().list()
+                .setQ(q)
+                .setSpaces("drive")
+                .setFields("files(id, name, mimeType, modifiedTime)")
+                .setPageSize(200)
+                .execute()
+
+            result.files?.map { file ->
+                DriveFileInfo(
+                    id = file.id,
+                    name = file.name,
+                    mimeType = file.mimeType,
+                    modifiedTimeMillis = file.modifiedTime?.value ?: 0L,
+                    sizeBytes = 0L,
+                    md5Checksum = null,
+                    parentId = parentFolderId
+                )
+            } ?: emptyList()
+        }
+    }
+
     suspend fun uploadFile(
         localFile: File,
         parentFolderId: String,

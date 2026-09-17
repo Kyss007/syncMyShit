@@ -10,9 +10,11 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.syncmyshit.app.data.model.EmulatorProfile
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.util.UUID
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "syncmyshit_prefs")
 
@@ -36,6 +38,7 @@ class PreferencesManager(private val context: Context) {
         val KEY_OAUTH_EXPIRES_AT = stringPreferencesKey("oauth_expires_at")
         val KEY_OAUTH_CODE_VERIFIER = stringPreferencesKey("oauth_code_verifier")
         val KEY_OAUTH_STATE = stringPreferencesKey("oauth_state")
+        val KEY_DEVICE_ID = stringPreferencesKey("device_id")
     }
 
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = false }
@@ -93,6 +96,19 @@ class PreferencesManager(private val context: Context) {
 
     suspend fun setSetupCompleted(completed: Boolean) {
         context.dataStore.edit { it[KEY_IS_SETUP_COMPLETED] = completed }
+    }
+
+    /**
+     * Returns a stable, unique identifier for this device.
+     * Generated once using UUID and persisted across app restarts.
+     * Used to namespace per-device save files on Google Drive.
+     */
+    suspend fun getOrCreateDeviceId(): String {
+        val existing = context.dataStore.data.first()[KEY_DEVICE_ID]
+        if (!existing.isNullOrBlank()) return existing
+        val newId = UUID.randomUUID().toString().replace("-", "").take(12)
+        context.dataStore.edit { it[KEY_DEVICE_ID] = newId }
+        return newId
     }
 
     suspend fun setGoogleAccount(email: String?, driveFolderId: String? = null) {

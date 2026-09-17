@@ -214,13 +214,17 @@ class ScannerRepository(
 
     private fun countSaveFiles(dir: File, extensions: List<String>): Int {
         if (!dir.exists() || !dir.isDirectory) return 0
+        if (extensions.isEmpty()) return 0 // No known extensions = don't sync
         var count = 0
         try {
             val files = dir.listFiles() ?: return 0
             for (file in files) {
                 if (file.isFile && matchesExtension(file.name, extensions)) {
                     count++
-                } else if (file.isDirectory && !file.name.startsWith(".") && file.name != "Android") {
+                } else if (file.isDirectory && !file.name.startsWith(".")
+                    && file.name != "Android"
+                    && file.name != ".syncmyshit_backups"
+                ) {
                     val subFiles = file.listFiles() ?: continue
                     for (subFile in subFiles) {
                         if (subFile.isFile && matchesExtension(subFile.name, extensions)) {
@@ -235,12 +239,16 @@ class ScannerRepository(
 
     private fun collectFiles(dir: File, extensions: List<String>, outList: MutableList<File>) {
         if (!dir.exists() || !dir.isDirectory) return
+        if (extensions.isEmpty()) return // No known extensions = don't sync
         try {
             val files = dir.listFiles() ?: return
             for (file in files) {
                 if (file.isFile && matchesExtension(file.name, extensions)) {
                     outList.add(file)
-                } else if (file.isDirectory && !file.name.startsWith(".") && file.name != "Android") {
+                } else if (file.isDirectory && !file.name.startsWith(".")
+                    && file.name != "Android"
+                    && file.name != ".syncmyshit_backups"
+                ) {
                     val subFiles = file.listFiles() ?: continue
                     for (subFile in subFiles) {
                         if (subFile.isFile && matchesExtension(subFile.name, extensions)) {
@@ -253,13 +261,19 @@ class ScannerRepository(
     }
 
     private fun matchesExtension(fileName: String, extensions: List<String>): Boolean {
-        if (extensions.isEmpty() || extensions.contains("*")) return true
+        if (extensions.isEmpty()) return false // Never sync if no extensions defined
         val lower = fileName.lowercase()
         return extensions.any { ext ->
-            if (ext.endsWith("*")) {
-                lower.contains(ext.removeSuffix("*").lowercase())
-            } else {
-                lower.endsWith(ext.lowercase())
+            when {
+                ext == "*" -> false // Never match wildcards blindly
+                ext.contains('?') -> {
+                    // Pattern like ".s??" → match exact length suffix (e.g. .s00, .s01, .sav)
+                    val lowerExt = ext.lowercase()
+                    if (lower.length < lowerExt.length) return@any false
+                    val suffix = lower.takeLast(lowerExt.length)
+                    suffix.zip(lowerExt).all { (a, b) -> b == '?' || a == b }
+                }
+                else -> lower.endsWith(ext.lowercase())
             }
         }
     }
