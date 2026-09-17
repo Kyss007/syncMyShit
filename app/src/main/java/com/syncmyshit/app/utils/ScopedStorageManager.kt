@@ -166,9 +166,22 @@ object ScopedStorageManager {
         return parent.listFiles().firstOrNull { it.name == targetName }
     }
 
+    private fun invokeShizukuProcess(cmd: Array<String>): java.lang.Process? {
+        return runCatching {
+            val method = Shizuku::class.java.getDeclaredMethod(
+                "newProcess",
+                Array<String>::class.java,
+                Array<String>::class.java,
+                String::class.java
+            )
+            method.isAccessible = true
+            method.invoke(null, cmd, null, null) as? java.lang.Process
+        }.getOrNull()
+    }
+
     private fun readViaShizuku(absolutePath: String): ByteArray? {
         return runCatching {
-            val process = Shizuku.newProcess(arrayOf("sh", "-c", "cat \"$absolutePath\""), null, null)
+            val process = invokeShizukuProcess(arrayOf("sh", "-c", "cat \"$absolutePath\"")) ?: return null
             val bytes = process.inputStream.use { it.readBytes() }
             process.waitFor()
             if (process.exitValue() == 0) bytes else null
@@ -178,10 +191,10 @@ object ScopedStorageManager {
     private fun writeViaShizuku(absolutePath: String, bytes: ByteArray): Boolean {
         return runCatching {
             val parentDir = File(absolutePath).parent ?: ""
-            val mkdirProcess = Shizuku.newProcess(arrayOf("sh", "-c", "mkdir -p \"$parentDir\""), null, null)
-            mkdirProcess.waitFor()
+            val mkdirProcess = invokeShizukuProcess(arrayOf("sh", "-c", "mkdir -p \"$parentDir\""))
+            mkdirProcess?.waitFor()
 
-            val process = Shizuku.newProcess(arrayOf("sh", "-c", "cat > \"$absolutePath\""), null, null)
+            val process = invokeShizukuProcess(arrayOf("sh", "-c", "cat > \"$absolutePath\"")) ?: return false
             process.outputStream.use { it.write(bytes); it.flush() }
             process.waitFor()
             process.exitValue() == 0
