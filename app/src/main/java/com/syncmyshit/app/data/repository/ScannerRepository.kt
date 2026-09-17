@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import com.syncmyshit.app.data.local.EmulatorRegistry
 import com.syncmyshit.app.data.local.PreferencesManager
 import com.syncmyshit.app.data.model.EmulatorProfile
+import com.syncmyshit.app.data.model.ProfileCategory
 import com.syncmyshit.app.data.model.SaveFileItem
 import com.syncmyshit.app.utils.FileHashUtils
 import com.syncmyshit.app.utils.StorageAccessHelper
