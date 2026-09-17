@@ -29,30 +29,50 @@ class ScannerRepository(
         val allProfiles = EmulatorRegistry.BUILT_IN_PROFILES + customProfiles
 
         val discoveredList = mutableListOf<EmulatorProfile>()
+        val resolvedPaths = mutableSetOf<String>()
 
         for (profile in allProfiles) {
             val isPackageInstalled = profile.packageNames.any { pkg ->
                 installedPackages.contains(pkg) || installedPackages.any { it.startsWith(pkg) }
             }
 
-            // Look for existing candidate save directories across all storage roots
-            var foundPath: String? = null
-            var fileCount = 0
+            // 1. Look for existing candidate save directories across all storage roots
+            var bestPath: String? = null
+            var bestCount = 0
 
             for (root in storageRoots) {
                 for (candidate in profile.candidatePaths) {
-                    val candidateFile = File(root, candidate)
+                    val candidateFile = if (candidate.startsWith("/")) File(candidate) else File(root, candidate)
                     if (candidateFile.exists() && candidateFile.canRead()) {
-                        foundPath = candidateFile.absolutePath
-                        fileCount = countSaveFiles(candidateFile, profile.fileExtensions)
-                        break
+                        val count = countSaveFiles(candidateFile, profile.fileExtensions)
+                        if (count > bestCount) {
+                            bestCount = count
+                            bestPath = candidateFile.absolutePath
+                        } else if (bestPath == null) {
+                            bestPath = candidateFile.absolutePath
+                            bestCount = count
+                        }
                     }
                 }
-                if (foundPath != null) break
             }
+
+            // 2. Deep fallback: If no candidate path had save files, search for directories with matching extensions
+            if (bestCount == 0 && profile.fileExtensions.isNotEmpty() && !profile.isCustom) {
+                val deepMatch = findDirectoryWithExtensions(storageRoots, profile.fileExtensions)
+                if (deepMatch != null) {
+                    bestPath = deepMatch.first
+                    bestCount = deepMatch.second
+                }
+            }
+
+            val foundPath = bestPath
+            val fileCount = bestCount
 
             // Include if either package is installed, or the save folder exists, or it's custom
             if (foundPath != null || isPackageInstalled || profile.isCustom) {
+                if (foundPath != null) {
+                    resolvedPaths.add(foundPath)
+                }
                 discoveredList.add(
                     profile.copy(
                         resolvedSavePath = foundPath,
@@ -62,7 +82,104 @@ class ScannerRepository(
             }
         }
 
+        // 3. Auto-discover any other emulator/system folders containing save files on internal/SD storage
+        val autoDiscovered = autoDiscoverUnregisteredSaveFolders(storageRoots, resolvedPaths)
+        discoveredList.addAll(autoDiscovered)
+
         discoveredList
+    }
+
+    private fun findDirectoryWithExtensions(roots: List<File>, extensions: List<String>): Pair<String, Int>? {
+        val searchSubdirs = listOf(
+            "", "roms", "Roms", "ROMs", "Games", "games", "Emulation", "emulation",
+            "RetroArch", "retroarch", "DraStic", "drastic", "Saves", "saves",
+            "ES-DE", "Daijisho", "RetroDeck"
+        )
+        for (root in roots) {
+            for (sub in searchSubdirs) {
+                val base = if (sub.isEmpty()) root else File(root, sub)
+                if (base.exists() && base.isDirectory && base.canRead()) {
+                    base.walkTopDown().maxDepth(3).forEach { dir ->
+                        if (dir.isDirectory && dir.name != "Android" && !dir.name.startsWith(".")) {
+                            val count = countSaveFiles(dir, extensions)
+                            if (count > 0) {
+                                return Pair(dir.absolutePath, count)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return null
+    }
+
+    private fun autoDiscoverUnregisteredSaveFolders(
+        storageRoots: List<File>,
+        alreadyDiscoveredPaths: Set<String>
+    ): List<EmulatorProfile> {
+        val additional = mutableListOf<EmulatorProfile>()
+        val searchFolders = listOf(
+            "roms", "Roms", "ROMs", "Games", "games", "Emulation/saves", "Emulation/roms",
+            "RetroArch/saves", "Saves", "saves", "drastic", "DraStic"
+        )
+
+        val knownSystems = mapOf(
+            "nds" to Pair("Nintendo DS", listOf(".dsv", ".dss", ".sav")),
+            "ds" to Pair("Nintendo DS", listOf(".dsv", ".dss", ".sav")),
+            "gba" to Pair("Game Boy Advance", listOf(".sav", ".srm", ".state")),
+            "gbc" to Pair("Game Boy Color", listOf(".sav", ".srm")),
+            "gb" to Pair("Game Boy", listOf(".sav", ".srm")),
+            "snes" to Pair("Super Nintendo", listOf(".srm", ".state")),
+            "sfc" to Pair("Super Famicom", listOf(".srm", ".state")),
+            "nes" to Pair("NES / Famicom", listOf(".srm", ".state")),
+            "n64" to Pair("Nintendo 64", listOf(".srm", ".mpk", ".fla", ".eep")),
+            "psx" to Pair("Sony PlayStation", listOf(".mcd", ".mcr", ".srm", ".sav")),
+            "ps1" to Pair("Sony PlayStation", listOf(".mcd", ".mcr", ".srm", ".sav")),
+            "ps2" to Pair("Sony PlayStation 2", listOf(".ps2", ".mcd")),
+            "psp" to Pair("Sony PSP", listOf(".bin", ".sfo", ".ppst")),
+            "megadrive" to Pair("Sega Genesis", listOf(".srm", ".state")),
+            "genesis" to Pair("Sega Genesis", listOf(".srm", ".state")),
+            "dreamcast" to Pair("Sega Dreamcast", listOf(".bin", ".vmu", ".state")),
+            "dc" to Pair("Sega Dreamcast", listOf(".bin", ".vmu", ".state"))
+        )
+
+        for (root in storageRoots) {
+            for (searchBase in searchFolders) {
+                val base = File(root, searchBase)
+                if (base.exists() && base.isDirectory && base.canRead()) {
+                    base.walkTopDown().maxDepth(3).forEach { dir ->
+                        if (dir.isDirectory && !dir.name.startsWith(".") && dir.name != "Android") {
+                            val abs = dir.absolutePath
+                            if (!alreadyDiscoveredPaths.contains(abs)) {
+                                val folderLower = dir.name.lowercase()
+                                val systemInfo = knownSystems[folderLower]
+                                if (systemInfo != null) {
+                                    val count = countSaveFiles(dir, systemInfo.second)
+                                    if (count > 0) {
+                                        additional.add(
+                                            EmulatorProfile(
+                                                id = "auto_${dir.name.lowercase()}_${abs.hashCode()}",
+                                                name = "${systemInfo.first} (${dir.name})",
+                                                system = systemInfo.first,
+                                                category = ProfileCategory.EMULATOR,
+                                                packageNames = emptyList(),
+                                                candidatePaths = listOf(abs),
+                                                resolvedSavePath = abs,
+                                                fileExtensions = systemInfo.second,
+                                                driveSubfolder = dir.name,
+                                                fileCount = count,
+                                                isEnabled = true
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return additional
     }
 
     suspend fun scanSaveFilesForProfile(profile: EmulatorProfile): List<SaveFileItem> = withContext(Dispatchers.IO) {
