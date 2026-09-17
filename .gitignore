@@ -14,4 +14,10 @@ local.properties
 
 dist/
 syncMyShit.spec
+__pycache__/
+*.pyc
+release-desktop/
+package-linux/
+package-windows/
+
 

@@ -44,9 +44,27 @@ jobs:
       - name: Build Standalone Executable with PyInstaller
         shell: bash
         run: |
-          pyinstaller --onefile --name syncMyShit desktop/main.py
+          pyinstaller --clean --noconfirm --onefile --name syncMyShit desktop/main.py
           mkdir -p release-desktop
           cp "${{ matrix.binary_path }}" "release-desktop/${{ matrix.target_name }}"
+
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            chmod +x "release-desktop/${{ matrix.target_name }}"
+            mkdir -p package-linux
+            cp dist/syncMyShit package-linux/
+            chmod +x package-linux/syncMyShit
+            cp install.sh package-linux/
+            chmod +x package-linux/install.sh
+            cp syncMyShit.desktop package-linux/
+            cp desktop/README.md package-linux/
+            tar -czf release-desktop/syncMyShit-linux-x64.tar.gz -C package-linux .
+          else
+            mkdir -p package-windows
+            cp dist/syncMyShit.exe package-windows/
+            cp desktop/README.md package-windows/
+            7z a release-desktop/syncMyShit-windows-x64.zip ./package-windows/*
+          fi
+
           ls -la release-desktop/
 
       - name: Upload Build Artifact

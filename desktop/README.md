@@ -2,61 +2,93 @@
 
 Automagic retro emulator cloud save sync for **Linux** (Steam Deck, Arch, Ubuntu, etc.) and **Windows**.
 
-Pairs seamlessly with the Android app on handhelds like Retroid Pocket 3+.
+Pairs seamlessly with the Android app on handhelds like Retroid Pocket 3+, Anbernic RG DS, and Odin.
 
 ---
 
 ## ⚡ Quick Start
 
-### Standalone Executable (No Python Required)
-Download the prebuilt binary from [GitHub Releases](https://github.com/Kyss007/syncMyShit/releases):
-* **Linux:** `chmod +x syncMyShit-linux-x64 && ./syncMyShit-linux-x64 status`
-* **Windows:** Double-click or run in PowerShell `syncMyShit-windows-x64.exe status`
+### 1. Standalone App (No Python Required)
+Download the prebuilt release from [GitHub Releases](https://github.com/Kyss007/syncMyShit/releases):
+
+#### 🐧 Linux & Steam Deck:
+* **Option A (Desktop App):** Download `syncMyShit-linux-x64.tar.gz`, extract it, and run `./install.sh`. It adds `syncMyShit` to your Application Launcher / Start Menu and sets up executable permissions automatically.
+* **Option B (Direct binary):**
+  ```bash
+  chmod +x syncMyShit-linux-x64
+  ./syncMyShit-linux-x64
+  ```
+  *(Launching without arguments automatically opens the Graphical User Interface)*
+
+#### 🪟 Windows:
+* Download `syncMyShit-windows-x64.exe` (or `.zip`) and double-click to launch the GUI!
 
 ---
 
-## 🚀 CLI Commands
+## 🖥️ Graphical User Interface (GUI)
+Launching the app without CLI arguments automatically opens the dark-themed desktop interface:
+* **⚡ Sync Saves Now**: One-click sync across all detected emulators.
+* **🔍 Scan Saves**: Lists all found save files, sizes, and timestamps.
+* **👁 Auto-Sync Watcher**: Runs in the background, syncing saves when you start or close an emulator.
+* **📁 Select Cloud / Sync Folder**: Easily point to your Google Drive Desktop folder, Syncthing, Nextcloud, or SD card.
+* **➕ Add Custom Path**: Add custom standalone PC games, ports, or non-standard emulator directories.
 
-### 1. Check Status & Detected Emulators
+---
+
+## 🚀 CLI Commands (Headless / Scripts / Power Users)
+
 ```bash
+# Open Graphical UI
+syncmyshit gui
+
+# Show detected emulators and cloud folder status
 syncmyshit status
-```
-Automatically finds your emulators (RetroArch, Dolphin, PCSX2, DuckStation, PPSSPP, RPCS3, Ryujinx, Cemu, Citra, MelonDS, mGBA) across native installs, Steam, and Flatpak.
 
-### 2. Scan Saves
-```bash
+# Scan save files across all emulators
 syncmyshit scan
-```
-Scans and calculates hashes for all save files across detected emulators.
 
-### 3. Run One-Time Sync
-```bash
+# Run save sync immediately once
 syncmyshit sync
-```
-Immediately compares local saves with your cloud/sync folder and downloads/uploads newer saves with zero save-loss local backups.
 
-### 4. Run Automagic Background Daemon (Watcher)
-```bash
+# Run background watcher daemon (detects game start/exit)
 syncmyshit watch
-```
-Runs in the background. Detects when you open an emulator (runs Pre-Play Sync) and when you close it (runs Post-Play Save Sync).
 
-### 5. Add Custom Game / Emulator Path
-```bash
+# Add custom save folder
 syncmyshit add-path "MyPCGame" "/path/to/game/saves"
+
+# Set target sync folder (Google Drive, Syncthing, Nextcloud, etc.)
+syncmyshit set-folder "~/GoogleDrive/syncMyShit"
+
+# Interactive terminal menu (for SSH / headless)
+syncmyshit --cli
 ```
 
-### 6. Set Custom Sync Folder (Syncthing / Drive / Nextcloud)
-```bash
-syncmyshit set-folder "~/GoogleDrive/syncMyShit"
-```
+---
+
+## 🎮 Supported Desktop Emulators
+Automatically detects native installs, Flatpak, and Steam for:
+* **Dolphin** (GameCube & Wii)
+* **PCSX2** (PlayStation 2)
+* **DuckStation** (PlayStation 1)
+* **PPSSPP** (PSP)
+* **RPCS3** (PlayStation 3)
+* **Ryujinx / Yuzu / Suyu / Sudachi** (Nintendo Switch)
+* **Cemu** (Wii U)
+* **Citra / Lime3DS** (Nintendo 3DS)
+* **MelonDS / DraStic** (Nintendo DS)
+* **mGBA** (Game Boy Advance)
+* **Flycast** (Sega Dreamcast)
+* **Vita3K** (Sony PS Vita)
+* **RMG / Mupen64Plus** (Nintendo 64)
+* **RetroArch** (Universal Multi-System)
 
 ---
 
 ## 🛡️ Zero Save-Loss Protection
-Every time a cloud save is downloaded, the local file is automatically backed up with a timestamp to:
+Every time a cloud save is updated or overwritten, the local save is automatically backed up with a timestamp to:
 `~/.syncmyshit_backups/<emulator>/<filename>_<timestamp>.<ext>`
-Keeps the latest 5 backups by default so you can never lose gameplay progress.
+
+Keeps the latest 5 versions so you can rollback at any time and never lose gameplay progress.
 
 ---
 

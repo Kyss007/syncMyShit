@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=syncMyShit
+Comment=Automagic Retro Game Cloud Save Sync
+Exec=syncMyShit
+Icon=preferences-desktop-gaming
+Terminal=false
+Type=Application
+Categories=Game;Utility;Archiving;
+StartupNotify=true
