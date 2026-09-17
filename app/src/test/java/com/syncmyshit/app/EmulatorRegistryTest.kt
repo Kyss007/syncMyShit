@@ -38,4 +38,18 @@ class EmulatorRegistryTest {
         assertTrue("Should include recomp projects", recomp.isNotEmpty())
         assertTrue("Should include Zelda 64 recomp", recomp.any { it.id.contains("zelda") })
     }
+
+    @Test
+    fun testCocoonFeSystemsCovered() {
+        val profiles = EmulatorRegistry.BUILT_IN_PROFILES
+        val allPackages = profiles.flatMap { it.packageNames }
+        // Verify key CocoonFE emulator packages are covered
+        assertTrue(allPackages.contains("info.cemu.cemu")) // CEMU Wii U
+        assertTrue(allPackages.contains("org.devmiyax.yabasanshioro2")) // Saturn
+        assertTrue(allPackages.contains("com.winlator")) // Winlator PC
+        assertTrue(allPackages.contains("com.izzy2lost.x1box")) // Xbox
+        assertTrue(allPackages.contains("com.fastemulator.gba")) // MyBoy
+        assertTrue(allPackages.contains("it.dbtecno.pizzaboygba")) // PizzaBoy
+        assertTrue(allPackages.contains("org.scummvm.scummvm")) // ScummVM
+    }
 }

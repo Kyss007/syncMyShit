@@ -9,20 +9,30 @@
 | System / App | Emulator Name | Default Save Locations Tracked | File Extensions |
 | :--- | :--- | :--- | :--- |
 | **Multi-System** | RetroArch / 64 / 32 | `RetroArch/saves`, `RetroArch/states`, `Android/data/com.retroarch*/files/saves` | `.srm`, `.state`, `.state.auto`, `.rtc`, `.brm` |
-| **Sony PSP** | PPSSPP / Gold | `PSP/SAVEDATA`, `PSP/PPSSPP_STATE`, `Android/data/org.ppsspp.ppsspp*/files/PSP` | `.bin`, `.sfo`, `.png`, `.ppst` |
-| **Sony PS2** | AetherSX2 / NetherSX2 | `Android/data/xyz.aethersx2.android/files/memcards`, `xyz.nether.android`, `AetherSX2/memcards` | `.ps2`, `.mcd`, `.p2s` |
-| **Nintendo GC / Wii** | Dolphin / MMJR / MMJR2 | `dolphin-emu/GC`, `dolphin-emu/Wii/title`, `Android/data/org.dolphinemu*/files` | `.raw`, `.gci`, `.sav`, `.ssp`, `.bin` |
-| **Nintendo 3DS** | Citra / Lime3DS / Azahar | `citra-emu/sdmc`, `lime3ds-emu/sdmc`, `Android/data/org.citra.citra_emu*/files/sdmc` | `.sav`, `.dat`, `.bin`, `.db` |
-| **Nintendo Switch** | Yuzu / Suyu / Sudachi / Uzuy | `Android/data/org.yuzu.yuzu_emu*/files/nand/user/save`, `suyu`, `sudachi` | `.bin`, `.dat`, `.sav` |
-| **Sony PS1** | DuckStation | `Android/data/com.github.stenzek.duckstation/files/memcards`, `duckstation/` | `.mcd`, `.mcr`, `.sav` |
-| **Sony PS Vita** | Vita3K | `Android/data/org.vita3k.emulator/files/vita3k/ux0/user/00/savedata` | `.bin`, `.dat`, `.png` |
-| **Nintendo 64** | Mupen64Plus FZ / Pro | `Mupen64PlusFZ/GameSaves`, `Android/data/org.mupen64plusae.v3.fzurita*/files` | `.mpk`, `.fla`, `.sra`, `.eep`, `.st*` |
-| **Sega Dreamcast** | Flycast | `Flycast/data`, `Android/data/com.flyinghead.Flycast/files/data` | `.bin`, `.state`, `.nvmem` |
-| **Sega Dreamcast** | Redream | `redream`, `Android/data/io.recompiled.redream/files` | `.bin`, `.state` |
-| **Nintendo DS** | DraStic | `DraStic/backup`, `DraStic/savestates`, `Android/data/com.dsemu.drastic/files/backup` | `.dsv`, `.dss` |
-| **Nintendo DS** | MelonDS | `Android/data/me.magnum.melonds/files`, `melonDS` | `.sav`, `.mln` |
-| **GBA / GBC** | Pizza Boy GBA / GBC | `Android/data/it.dbtecno.pizzaboy*/files/savegames`, `PizzaBoyGBA/savegames` | `.sav`, `.sta` |
-| **GBA / GBC** | MyBoy! / MyOldBoy! | `MyBoy/save`, `MyOldBoy/save` | `.sav`, `.st*` |
+| **Sony PSP** | PPSSPP / Gold / Legacy | `PSP/SAVEDATA`, `PSP/PPSSPP_STATE`, `Android/data/org.ppsspp.ppsspp*/files/PSP` | `.bin`, `.sfo`, `.png`, `.ppst` |
+| **Sony PS2** | AetherSX2 / NetherSX2 / ARMSX2 | `Android/data/xyz.aethersx2.android/files/memcards`, `xyz.nether.android`, `AetherSX2/memcards` | `.ps2`, `.mcd`, `.p2s` |
+| **Sony PS1** | DuckStation / ePSXe / FPse | `Android/data/com.github.stenzek.duckstation/files/memcards`, `duckstation/`, `epsxe/memcards` | `.mcd`, `.mcr`, `.sav`, `.bin` |
+| **Sony PS Vita** | Vita3K / Vita3K ZX | `Android/data/org.vita3k.emulator/files/vita3k/ux0/user/00/savedata` | `.bin`, `.dat`, `.png` |
+| **Sony PS3** | aPS3e / ARMSX3 | `Android/data/aenu.aps3e/files/dev_hdd0/home/00000001/savedata` | `.bin`, `.dat`, `.png` |
+| **Nintendo GC / Wii** | Dolphin / MMJR / Ishiiruka / PrimeHack | `dolphin-emu/GC`, `dolphin-emu/Wii/title`, `Android/data/org.dolphinemu*/files` | `.raw`, `.gci`, `.sav`, `.ssp`, `.bin` |
+| **Nintendo Wii U** | CEMU Android | `Android/data/info.cemu.cemu/files/mlc01/usr/save` | `.bin`, `.dat`, `.txt` |
+| **Nintendo 3DS** | Citra / Lime3DS / Azahar / Mandarine | `citra-emu/sdmc`, `lime3ds-emu/sdmc`, `Android/data/org.citra.citra_emu*/files/sdmc` | `.sav`, `.dat`, `.bin`, `.db` |
+| **Nintendo Switch** | Yuzu / Suyu / Sudachi / Citron / Eden / Skyline | `Android/data/org.yuzu.yuzu_emu*/files/nand/user/save`, `suyu`, `sudachi` | `.bin`, `.dat`, `.sav` |
+| **Nintendo DS / DSi** | DraStic / MelonDS / NooDS | `DraStic/backup`, `Android/data/com.dsemu.drastic/files/backup`, `me.magnum.melonds` | `.dsv`, `.dss`, `.sav`, `.mln` |
+| **Nintendo 64** | Mupen64Plus FZ / Pro / AE | `Mupen64PlusFZ/GameSaves`, `Android/data/org.mupen64plusae.v3.fzurita*/files` | `.mpk`, `.fla`, `.sra`, `.eep`, `.st*` |
+| **Sega Saturn** | YabaSanshiro 2 / Saturn.EMU | `Android/data/org.devmiyax.yabasanshioro2/files`, `yabasanshioro` | `.bin`, `.dat`, `.sav` |
+| **Sega Dreamcast** | Flycast / Redream / Reicast | `Flycast/data`, `redream`, `Android/data/io.recompiled.redream/files` | `.bin`, `.state`, `.nvmem` |
+| **GBA / GBC / GB** | Pizza Boy / MyBoy / SkyEmu / Linkboy | `Android/data/it.dbtecno.pizzaboy*/files/savegames`, `MyBoy/save` | `.sav`, `.sta`, `.st*` |
+| **Classic .EMU** | Snes9x EX+, NES, MD, NeoGeo, MSX, C64, PCE | `Android/data/com.explusalpha.*/files`, `.emu/saves` | `.sav`, `.sta`, `.srm` |
+| **Xbox & Xbox 360** | X1 BOX, ax360e, X360 Mobile | `Android/data/com.izzy2lost.x1box/files`, `Android/data/aenu.ax360e/files` | `.bin`, `.dat`, `.sav` |
+| **Windows PC** | Winlator / MiceWine / GameHub | `Android/data/com.winlator/files`, `Winlator` | `.sav`, `.dat`, `.ini` |
+| **Arcade / MAME** | MAME4droid (2024 / Classic) | `MAME4droid/sta`, `MAME4droid/nvram` | `.sta`, `.nv` |
+| **Adventures** | ScummVM | `ScummVM/saves`, `Android/data/org.scummvm.scummvm/files/saves` | `.s??`, `.sav`, `.0??` |
+| **Fantasy Console** | PICO-8 (Pixl8 / Infinity P8) | `pico-8/cdata`, `Android/data/be.codedreams.pixl8/files` | `.p8`, `.png`, `.txt` |
+| **Virtual Boy** | Virtual Boy (vvb) | `Android/data/com.simongellis.vvb/files/saves` | `.sav`, `.srm` |
+| **Nokia N-Gage** | EKA2L1 | `EKA2L1/data/drives/c` | `.dat`, `.bin` |
+| **Java Mobile** | J2ME Loader | `j2meloader/rms`, `Android/data/ru.playsoftware.j2meloader/files` | `.db`, `.rms` |
+| **Atari Jaguar** | IrataJaguar | `IrataJaguar/saves`, `Android/data/ru.vastness.altmer.iratajaguar/files` | `.eep`, `.sav` |
 
 ---
 

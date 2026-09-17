@@ -47,8 +47,8 @@ Managing save files across multiple Android devices or emulators is tedious:
   - Implements **Storage Access Framework (SAF)** DocumentTree and optional **Shizuku** rootless ADB bindings.
   - Aims to access emulator folders inside `Android/data/` on Android 11+ (such as DraStic, Dolphin, AetherSX2).
 - 🆓 **100% Free & Unlicensed (Public Domain)**: Zero fees, zero subscriptions, no proprietary lock-in ([The Unlicense](LICENSE)).
-- 🔍 **Pre-configured Profiles for 20+ Emulators & Recomps**:
-  - Profiles defined for RetroArch, PPSSPP, Dolphin, DuckStation, Vita3K, Yuzu/Suyu, Mupen64Plus, DraStic, MelonDS, Pizza Boy, MyBoy, Zelda 64 Recompiled, Ship of Harkinian, SM64, Balatro, and PortMaster.
+- 🔍 **Full CocoonFE Alignment (All 125 Platforms & 140+ Emulators)**:
+  - Directly supports every emulator and player package supported by [CocoonFE](https://github.com/inssekt/CocoonFE): RetroArch (all cores), PPSSPP, AetherSX2/NetherSX2/ARMSX2, DuckStation/ePSXe/FPse, Vita3K, aPS3e, CEMU (Wii U), Dolphin (Official/MMJR/Ishiiruka/PrimeHack), Citra/Lime3DS/Azahar/Mandarine, Nintendo Switch (Yuzu/Suyu/Sudachi/Citron/Eden/Skyline), DraStic, MelonDS, Mupen64Plus FZ, YabaSanshiro 2/Saturn.EMU, Flycast/Redream, Pizza Boy & MyBoy, all Robert Broglia .EMU apps (Snes9x EX+, NES, MD, NeoGeo, MSX, C64, PCE), Xbox & Xbox 360 (X1 BOX, ax360e), Winlator/MiceWine, ScummVM, PICO-8, and native recomp projects (Zelda 64, Ship of Harkinian, SM64, Balatro, PortMaster).
 - ➕ **Custom Paths**: Add arbitrary directories or file extension filters (`.sav`, `.dat`, `.json`, `*`).
 - 🎮 **Controller / D-Pad Focus**: Navigation states with focus borders for D-Pad / gamepad navigation.
 - 🛡️ **Snapshot Backups**:
