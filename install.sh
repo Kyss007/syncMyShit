@@ -43,3 +43,8 @@ chmod +x "$APP_DIR/syncMyShit.desktop"
 echo "✔ Installed desktop application launcher to $APP_DIR/syncMyShit.desktop"
 echo ""
 echo "🎉 Installation complete! You can now launch syncMyShit from your application menu or run 'syncMyShit' in terminal."
+if [ -d "$HOME/homebrew" ] || [ -d "/homebrew" ]; then
+    echo ""
+    echo "💡 Detected Decky Loader! To also install the syncMyShit Quick Access Plugin for Gaming Mode, run:"
+    echo "   bash $SCRIPT_DIR/install-decky.sh"
+fi

@@ -12,12 +12,14 @@ local.properties
 *.apk
 *.aab
 
-dist/
+/dist/
 syncMyShit.spec
 __pycache__/
 *.pyc
 release-desktop/
 package-linux/
 package-windows/
+node_modules/
+.pnpm-store/
 
 

@@ -1,0 +1,19 @@
+{
+  "name": "syncmyshit-decky",
+  "version": "1.0.15",
+  "description": "Decky Loader plugin for syncMyShit",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "@decky/api": "^1.1.3",
+    "@decky/ui": "^4.11.0",
+    "react-icons": "^5.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.18",
+    "esbuild": "^0.24.2",
+    "typescript": "^5.6.2"
+  }
+}

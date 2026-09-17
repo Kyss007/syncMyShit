@@ -20,11 +20,20 @@
 ---
 
 ### 📥 [Download Latest Releases](https://github.com/Kyss007/syncMyShit/releases)
+- 🎮 **Steam Deck (Decky Loader Plugin)**: `syncMyShit-decky.zip` (Direct QAM / `...` menu in Gaming Mode!)
 - 📱 **Android Handhelds**: `syncMyShit-v*.apk` (Retroid Pocket, Odin, Anbernic, phones)
-- 🐧 **Linux / Steam Deck**: `syncMyShit-linux-x64` (Single standalone binary)
-- 🪟 **Windows PC**: `syncMyShit-windows-x64.exe` (Single standalone executable)
+- 🐧 **Linux / Steam Deck (Desktop Mode)**: `syncMyShit-linux-x64` (Standalone GUI & CLI)
+- 🪟 **Windows PC**: `syncMyShit-windows-x64.exe` (Standalone GUI & CLI)
 
 ---
+
+### 🎮 Steam Deck (Decky Plugin Quick Install)
+In Steam Deck Desktop Mode, open Konsole and run:
+```bash
+curl -sSL https://raw.githubusercontent.com/Kyss007/syncMyShit/main/install-decky.sh | bash
+```
+Then press the `...` button in Gaming Mode to sync saves anytime!
+
 
 </div>
 

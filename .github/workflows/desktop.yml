@@ -58,6 +58,12 @@ jobs:
             cp syncMyShit.desktop package-linux/
             cp desktop/README.md package-linux/
             tar -czf release-desktop/syncMyShit-linux-x64.tar.gz -C package-linux .
+
+            # Build Decky Plugin for Steam Deck
+            echo "Building Decky Loader plugin..."
+            chmod +x package-decky.sh
+            ./package-decky.sh
+            cp dist/syncMyShit-decky.zip release-desktop/
           else
             mkdir -p package-windows
             cp dist/syncMyShit.exe package-windows/
