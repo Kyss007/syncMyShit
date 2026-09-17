@@ -257,7 +257,10 @@ fun DashboardScreen(
                                     color = StatusGreen
                                 )
                                 Text(
-                                    text = "Updated ${state.filesSyncedCount} save files across Google Drive.",
+                                    text = if (state.filesSyncedCount > 0)
+                                        "Updated ${state.filesSyncedCount} save files across Google Drive."
+                                    else
+                                        "All saves are up to date. Nothing to sync.",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = TextSecondary
                                 )

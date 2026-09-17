@@ -211,6 +211,14 @@ class SyncRepository(
     // Core multi-device sync
     // ─────────────────────────────────────────────────────────────────────────
 
+    private fun encodeRemoteFileName(relativePath: String): String {
+        return relativePath.replace(File.separatorChar, '/').replace("/", "___")
+    }
+
+    private fun decodeRemoteFileName(remoteFileName: String): String {
+        return remoteFileName.replace("___", File.separator)
+    }
+
     private suspend fun syncProfileInternal(
         profile: EmulatorProfile,
         driveService: GoogleDriveService,
@@ -219,10 +227,12 @@ class SyncRepository(
     ): Int {
         val savePath = profile.resolvedSavePath ?: return 0
         val rootDir = File(savePath)
+        if (!rootDir.exists()) {
+            rootDir.mkdirs()
+        }
         if (!rootDir.exists()) return 0
 
         val localFiles = scannerRepository.scanSaveFilesForProfile(profile)
-        if (localFiles.isEmpty()) return 0
 
         // Emulator root folder: syncMyShit/<emulator>/
         val emulatorFolder = driveService.getOrCreateSubfolder(profile.driveSubfolder, rootFolderId)
@@ -236,6 +246,12 @@ class SyncRepository(
         val myDeviceFolder = driveService.getOrCreateSubfolder(deviceId, devicesFolder.id)
             .getOrNull() ?: return 0
 
+        // Files already uploaded by this device
+        val myDeviceFiles = driveService.listFilesInFolder(myDeviceFolder.id)
+            .getOrDefault(emptyList())
+            .filter { !it.isDirectory }
+            .associateBy { it.name }
+
         // History archive folder: syncMyShit/<emulator>/_history/
         val historyFolder = driveService.getOrCreateSubfolder("_history", emulatorFolder.id)
             .getOrNull()
@@ -247,77 +263,133 @@ class SyncRepository(
             .associateBy { it.name }
 
         var syncCount = 0
+        val processedRemoteNames = mutableSetOf<String>()
 
         for ((index, item) in localFiles.withIndex()) {
+            val remoteFileName = encodeRemoteFileName(item.relativePath)
+            processedRemoteNames.add(remoteFileName)
+
+            val localFile = File(item.localAbsolutePath)
+            if (!localFile.exists()) continue
+
+            val localLength = localFile.length()
+            val currentCanonical = canonicalFiles[remoteFileName]
+            val myDeviceFile = myDeviceFiles[remoteFileName]
+
+            // Calculate MD5 only when needed (lazy evaluation)
+            var localMd5Cached: String? = null
+            fun getLocalMd5(): String {
+                if (localMd5Cached == null) {
+                    localMd5Cached = com.syncmyshit.app.utils.FileHashUtils.calculateMd5(localFile)
+                }
+                return localMd5Cached!!
+            }
+
+            val matchesCanonical = currentCanonical != null &&
+                currentCanonical.sizeBytes == localLength &&
+                !currentCanonical.md5Checksum.isNullOrBlank() &&
+                currentCanonical.md5Checksum.equals(getLocalMd5(), ignoreCase = true)
+
+            val matchesMyDevice = myDeviceFile != null &&
+                myDeviceFile.sizeBytes == localLength &&
+                !myDeviceFile.md5Checksum.isNullOrBlank() &&
+                myDeviceFile.md5Checksum.equals(getLocalMd5(), ignoreCase = true)
+
+            // ── Change Detection ──
+            // If the local file is already identical to canonical AND this device's copy is up-to-date:
+            // NOTHING has changed! Skip completely!
+            if (matchesCanonical && matchesMyDevice) {
+                continue
+            }
+
             _syncProgress.value = SyncProgressState.Syncing(
-                currentFile = "${profile.name}: ${item.fileName}",
+                currentFile = "${profile.name}: ${item.relativePath}",
                 currentStep = index + 1,
                 totalSteps = localFiles.size,
                 isUpload = true
             )
 
-            val localFile = File(item.localAbsolutePath)
-            if (!localFile.exists()) continue
-
-            // ── Step 1: Upload this device's copy to _devices/<device-id>/<file> ──
-            driveService.uploadFile(localFile, myDeviceFolder.id, item.fileName)
-
-            // ── Step 2: Archive the current canonical to _history/ before changing it ──
-            val currentCanonical = canonicalFiles[item.fileName]
-            if (currentCanonical != null && historyFolder != null) {
-                val dateStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-                archiveToHistory(driveService, currentCanonical, historyFolder.id, deviceId, dateStamp)
+            // If canonical already has this exact file, but our device subfolder is missing/outdated,
+            // just update our device subfolder without touching canonical or history
+            if (matchesCanonical && !matchesMyDevice) {
+                driveService.uploadFile(localFile, myDeviceFolder.id, remoteFileName)
+                continue
             }
 
-            // ── Step 3: Find newest version across ALL device subfolders ──
-            val (newestDeviceId, newestFile, newestTime) = findNewestAcrossDevices(
-                driveService, devicesFolder.id, item.fileName, localFile, deviceId
+            // If canonical doesn't have this file at all (brand new save)
+            if (currentCanonical == null) {
+                driveService.uploadFile(localFile, myDeviceFolder.id, remoteFileName)
+                driveService.uploadFile(localFile, emulatorFolder.id, remoteFileName)
+                syncCount++
+                addLog(
+                    profile.name, item.relativePath, SyncAction.UPLOAD,
+                    "Uploaded new save to cloud"
+                )
+                continue
+            }
+
+            // Canonical exists and differs from local file!
+            // Check across device subfolders to determine whether local or cloud is newer
+            val (newestDeviceId, newestFile, _) = findNewestAcrossDevices(
+                driveService, devicesFolder.id, remoteFileName, localFile, deviceId
             )
 
-            // ── Step 4: Act on who has the newest ──
-            val localTime = item.localLastModified
-            val canonicalTime = currentCanonical?.modifiedTimeMillis ?: 0L
-
             if (newestDeviceId == deviceId || newestFile == null) {
-                // This device is newest (or first) → push to canonical
-                if (newestFile == null || localTime > canonicalTime + 2000L) {
-                    driveService.uploadFile(localFile, emulatorFolder.id, item.fileName)
+                // Local device is newer → push to myDeviceFolder and canonical
+                if (historyFolder != null) {
+                    val dateStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                    archiveToHistory(driveService, currentCanonical, historyFolder.id, deviceId, dateStamp)
+                }
+                driveService.uploadFile(localFile, myDeviceFolder.id, remoteFileName)
+                driveService.uploadFile(localFile, emulatorFolder.id, remoteFileName)
+                syncCount++
+                addLog(
+                    profile.name, item.relativePath, SyncAction.UPLOAD,
+                    "Uploaded newest save from device $deviceId to cloud"
+                )
+            } else {
+                // Another device has a newer version!
+                // Back up local first so we never lose local progress
+                createLocalBackup(localFile, deviceId)
+                addLog(profile.name, item.relativePath, SyncAction.BACKUP_CREATED, "Saved local rollback copy")
+
+                // Download newest version
+                val result = driveService.downloadFile(newestFile.id, localFile, newestFile.modifiedTimeMillis)
+                if (result.isSuccess) {
                     syncCount++
                     addLog(
-                        profile.name, item.fileName, SyncAction.UPLOAD,
-                        "Uploaded newest save from device $deviceId to canonical"
+                        profile.name, item.relativePath, SyncAction.DOWNLOAD,
+                        "Downloaded newer save from device $newestDeviceId"
                     )
                 }
-            } else {
-                // Another device has a newer save → download it locally
-                if ((newestTime - localTime) > 2000L) {
-                    // Back up local first so we never lose local progress
-                    createLocalBackup(localFile, deviceId)
-                    addLog(profile.name, item.fileName, SyncAction.BACKUP_CREATED, "Saved local rollback copy")
 
-                    // Download the newest version from the winning device subfolder
-                    val result = driveService.downloadFile(newestFile.id, localFile)
-                    if (result.isSuccess) {
-                        syncCount++
-                        addLog(
-                            profile.name, item.fileName, SyncAction.DOWNLOAD,
-                            "Downloaded newer save from device $newestDeviceId"
-                        )
-                    }
+                // Update myDeviceFolder to have this latest version too
+                driveService.uploadFile(localFile, myDeviceFolder.id, remoteFileName)
 
-                    // Also promote that device's version to canonical
-                    driveService.uploadFile(localFile, emulatorFolder.id, item.fileName)
+                // If canonical isn't already this newest file, promote it
+                if (currentCanonical.id != newestFile.id) {
+                    driveService.uploadFile(localFile, emulatorFolder.id, remoteFileName)
                     addLog(
-                        profile.name, item.fileName, SyncAction.CONFLICT_RESOLVED,
+                        profile.name, item.relativePath, SyncAction.CONFLICT_RESOLVED,
                         "Promoted device $newestDeviceId save as canonical newest"
                     )
-                } else {
-                    // Timestamps are within 2s — upload local as canonical (tie → local wins)
-                    driveService.uploadFile(localFile, emulatorFolder.id, item.fileName)
+                }
+            }
+        }
+
+        // ── Step 5: Download any canonical files that don't exist locally yet ──
+        for ((remoteName, canonicalFile) in canonicalFiles) {
+            if (remoteName in processedRemoteNames) continue
+            val relPath = decodeRemoteFileName(remoteName)
+            val targetLocalFile = File(rootDir, relPath)
+            if (!targetLocalFile.exists()) {
+                targetLocalFile.parentFile?.mkdirs()
+                val result = driveService.downloadFile(canonicalFile.id, targetLocalFile, canonicalFile.modifiedTimeMillis)
+                if (result.isSuccess) {
                     syncCount++
                     addLog(
-                        profile.name, item.fileName, SyncAction.UPLOAD,
-                        "Uploaded save (tie resolved, local to canonical)"
+                        profile.name, relPath, SyncAction.DOWNLOAD,
+                        "Downloaded new save from cloud"
                     )
                 }
             }

@@ -236,7 +236,8 @@ class GoogleDriveService(
 
     suspend fun downloadFile(
         driveFileId: String,
-        destinationFile: File
+        destinationFile: File,
+        remoteModifiedTimeMillis: Long = 0L
     ): Result<File> = withContext(Dispatchers.IO) {
         runCatching {
             val drive = getDrive()
@@ -253,6 +254,10 @@ class GoogleDriveService(
             if (!tempFile.renameTo(destinationFile)) {
                 tempFile.copyTo(destinationFile, overwrite = true)
                 tempFile.delete()
+            }
+
+            if (remoteModifiedTimeMillis > 0L) {
+                destinationFile.setLastModified(remoteModifiedTimeMillis)
             }
 
             destinationFile

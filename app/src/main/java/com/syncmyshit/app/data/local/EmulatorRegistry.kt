@@ -34,14 +34,27 @@ object EmulatorRegistry {
             name = "PPSSPP",
             system = "Sony PSP",
             category = ProfileCategory.EMULATOR,
-            packageNames = listOf("org.ppsspp.ppsspp", "org.ppsspp.ppssppgold", "org.ppsspp.ppsspplegacy"),
+            packageNames = listOf(
+                "org.ppsspp.ppsspp",
+                "org.ppsspp.ppssppgold",
+                "org.ppsspp.ppsspplegacy",
+                "org.ppsspp.ppssppdev"
+            ),
             candidatePaths = listOf(
+                "EmuData/Psp/PSP/SAVEDATA",
+                "EmuData/Psp/PSP/PPSSPP_STATE",
+                "EmuData/PSP/SAVEDATA",
+                "EmuData/PSP/PPSSPP_STATE",
+                "EmuData/Psp/PSP",
                 "PSP/SAVEDATA",
                 "PSP/PPSSPP_STATE",
+                "PSP",
                 "Android/data/org.ppsspp.ppsspp/files/PSP/SAVEDATA",
-                "Android/data/org.ppsspp.ppssppgold/files/PSP/SAVEDATA"
+                "Android/data/org.ppsspp.ppsspp/files/PSP/PPSSPP_STATE",
+                "Android/data/org.ppsspp.ppssppgold/files/PSP/SAVEDATA",
+                "Android/data/org.ppsspp.ppssppgold/files/PSP/PPSSPP_STATE"
             ),
-            fileExtensions = listOf(".bin", ".sfo", ".ppst"),
+            fileExtensions = listOf(".bin", ".sfo", ".ppst", ".dat"),
             driveSubfolder = "PPSSPP"
         ),
 
@@ -88,6 +101,8 @@ object EmulatorRegistry {
                 "Android/data/com.github.stenzek.duckstation/files/memcards",
                 "Android/data/com.github.stenzek.duckstation/files/savestates",
                 "duckstation/memcards",
+                "duckstation/savestates",
+                "duckstation",
                 "epsxe/memcards",
                 "Android/data/com.epsxe.ePSXe/files"
             ),
@@ -125,16 +140,42 @@ object EmulatorRegistry {
             driveSubfolder = "PS3_aPS3e"
         ),
 
-        // Nintendo GameCube / Wii / WiiWare (Dolphin, MMJR, Ishiiruka, PrimeHack)
+        // Nintendo GameCube / Wii (Dolphin Official / Handheld)
         EmulatorProfile(
             id = "dolphin",
-            name = "Dolphin (Official / MMJR / Ishiiruka)",
+            name = "Dolphin (Official / Handheld)",
             system = "Nintendo GameCube & Wii",
             category = ProfileCategory.EMULATOR,
             packageNames = listOf(
                 "org.dolphinemu.dolphinemu",
                 "org.dolphinemu.dolphinemu.debug",
-                "org.dolphinemu.handheld",
+                "org.dolphinemu.handheld"
+            ),
+            candidatePaths = listOf(
+                "DolphinForHandheld",
+                "DolphinForHandheld/GC",
+                "DolphinForHandheld/Wii/title",
+                "DolphinForHandheld/StateSaves",
+                "dolphin-emu",
+                "dolphin-emu/GC",
+                "dolphin-emu/Wii/title",
+                "dolphin-emu/StateSaves",
+                "Android/data/org.dolphinemu.dolphinemu/files/GC",
+                "Android/data/org.dolphinemu.dolphinemu/files/Wii/title",
+                "Android/data/org.dolphinemu.dolphinemu/files/StateSaves",
+                "Android/data/org.dolphinemu.dolphinemu/files"
+            ),
+            fileExtensions = listOf(".raw", ".gci", ".sav", ".ssp", ".bin", ".dat"),
+            driveSubfolder = "Dolphin"
+        ),
+
+        // Nintendo GameCube / Wii (Dolphin MMJR / MMJR2 / Ishiiruka)
+        EmulatorProfile(
+            id = "dolphin_mmjr",
+            name = "Dolphin (MMJR / MMJR2)",
+            system = "Nintendo GameCube & Wii",
+            category = ProfileCategory.EMULATOR,
+            packageNames = listOf(
                 "org.dolphinemu.mmjr",
                 "org.dolphinemu.mmjr3",
                 "org.mm.jr",
@@ -143,15 +184,23 @@ object EmulatorRegistry {
                 "org.shiiion.primehack"
             ),
             candidatePaths = listOf(
-                "dolphin-emu/GC",
-                "dolphin-emu/Wii/title",
-                "dolphin-emu/StateSaves",
-                "Android/data/org.dolphinemu.dolphinemu/files/GC",
-                "Android/data/org.dolphinemu.dolphinemu/files/Wii/title",
-                "Android/data/org.dolphinemu.mmjr/files/GC"
+                "dolphin-mmjr",
+                "dolphin-mmjr/GC",
+                "dolphin-mmjr/Wii/title",
+                "dolphin-mmjr/StateSaves",
+                "mmjr-revamp",
+                "mmjr-revamp/GC",
+                "mmjr-revamp/Wii/title",
+                "mmjr-revamp/StateSaves",
+                "Android/data/org.dolphinemu.mmjr/files/GC",
+                "Android/data/org.dolphinemu.mmjr/files/Wii/title",
+                "Android/data/org.mm.jr/files/GC",
+                "Android/data/org.mm.jr/files/Wii/title",
+                "Android/data/org.dolphinemu.mmjr/files",
+                "Android/data/org.mm.jr/files"
             ),
-            fileExtensions = listOf(".raw", ".gci", ".sav", ".ssp", ".bin"),
-            driveSubfolder = "Dolphin"
+            fileExtensions = listOf(".raw", ".gci", ".sav", ".ssp", ".bin", ".dat"),
+            driveSubfolder = "Dolphin_MMJR"
         ),
 
         // Nintendo Wii U (CEMU Android)
@@ -187,13 +236,20 @@ object EmulatorRegistry {
                 "org.gamerytb.lemonade.canary"
             ),
             candidatePaths = listOf(
+                "EmuData/Citra/sdmc",
+                "EmuData/Citra",
                 "citra-emu/sdmc",
+                "citra-emu",
                 "lime3ds-emu/sdmc",
+                "lime3ds-emu",
                 "Android/data/org.citra.citra_emu/files/sdmc",
+                "Android/data/org.citra.citra_emu/files",
                 "Android/data/io.github.lime3ds.android/files/sdmc",
+                "Android/data/io.github.lime3ds.android/files",
+                "Android/data/org.citra.emu/files",
                 "Android/data/org.azahar_emu.azahar/files/sdmc"
             ),
-            fileExtensions = listOf(".sav", ".dat", ".bin", ".db"),
+            fileExtensions = listOf(".sav", ".dat", ".bin", ".db", ".bmssv"),
             driveSubfolder = "Citra_3DS"
         ),
 
@@ -224,9 +280,11 @@ object EmulatorRegistry {
             ),
             candidatePaths = listOf(
                 "Android/data/org.yuzu.yuzu_emu/files/nand/user/save",
+                "Android/data/skyline.emu/files/switch/nand/user/save",
                 "Android/data/org.suyu.suyu_emu/files/nand/user/save",
                 "Android/data/org.sudachi.sudachi_emu/files/nand/user/save",
-                "yuzu/nand/user/save"
+                "yuzu/nand/user/save",
+                "switch/nand/user/save"
             ),
             fileExtensions = listOf(".bin", ".dat", ".sav"),
             driveSubfolder = "Switch"
@@ -316,8 +374,13 @@ object EmulatorRegistry {
             ),
             candidatePaths = listOf(
                 "Mupen64PlusFZ/GameSaves",
+                "mupen64plus/GameSaves",
+                "Mupen64PlusFZ",
+                "mupen64plus",
+                "Android/data/org.mupen64plusae.v3.fzurita.pro/files/GameSaves",
                 "Android/data/org.mupen64plusae.v3.fzurita/files/GameSaves",
-                "Android/data/org.mupen64plusae.v3.fzurita.pro/files/GameSaves"
+                "Android/data/org.mupen64plusae.v3.fzurita.pro/files",
+                "Android/data/org.mupen64plusae.v3.fzurita/files"
             ),
             fileExtensions = listOf(".mpk", ".fla", ".sra", ".eep", ".st0", ".st1", ".st2"),
             driveSubfolder = "Mupen64"
@@ -610,11 +673,14 @@ object EmulatorRegistry {
             system = "Native Port",
             category = ProfileCategory.RECOMP,
             packageNames = listOf(
+                "com.dishii.soh",
                 "com.soh.android",
                 "com.soh.twoship",
                 "com.harbourmasters.shipofharkinian"
             ),
             candidatePaths = listOf(
+                "Android/data/com.dishii.soh/files/saves",
+                "Android/data/com.dishii.soh/files",
                 "ShipOfHarkinian/saves",
                 "2Ship2Harkinian/saves",
                 "Android/data/com.soh.android/files/saves",
@@ -661,6 +727,54 @@ object EmulatorRegistry {
             ),
             fileExtensions = listOf(".sav", ".dat"),
             driveSubfolder = "Game_AM2R"
+        ),
+        EmulatorProfile(
+            id = "source_engine",
+            name = "Source Engine (Portal / HL2)",
+            system = "PC / Source Engine",
+            category = ProfileCategory.STANDALONE_GAME,
+            packageNames = listOf(
+                "com.valvesoftware.source.portal",
+                "com.valvesoftware.source",
+                "org.srceng.launcher"
+            ),
+            candidatePaths = listOf(
+                "srceng/portal/SAVE",
+                "srceng/hl2/SAVE",
+                "roms/portal/SAVE",
+                "roms/portal",
+                "srceng",
+                "Android/data/com.valvesoftware.source.portal/files",
+                "Android/data/com.valvesoftware.source/files"
+            ),
+            fileExtensions = listOf(".sav", ".tga"),
+            driveSubfolder = "Game_SourceEngine"
+        ),
+        EmulatorProfile(
+            id = "pojav_launcher",
+            name = "PojavLauncher (Minecraft Java)",
+            system = "PC / Minecraft Java",
+            category = ProfileCategory.STANDALONE_GAME,
+            packageNames = listOf("net.kdt.pojavlaunch", "net.kdt.pojavlaunch.debug"),
+            candidatePaths = listOf(
+                "Android/data/net.kdt.pojavlaunch/files/.minecraft/saves",
+                "games/PojavLauncher/.minecraft/saves"
+            ),
+            fileExtensions = listOf(".dat", ".dat_old", ".mca"),
+            driveSubfolder = "Game_PojavMinecraft"
+        ),
+        EmulatorProfile(
+            id = "minecraft_bedrock",
+            name = "Minecraft (Bedrock)",
+            system = "Standalone Game",
+            category = ProfileCategory.STANDALONE_GAME,
+            packageNames = listOf("com.mojang.minecraftpe"),
+            candidatePaths = listOf(
+                "Android/data/com.mojang.minecraftpe/files/games/com.mojang/minecraftWorlds",
+                "games/com.mojang/minecraftWorlds"
+            ),
+            fileExtensions = listOf(".dat", ".dat_old", ".ldb"),
+            driveSubfolder = "Game_MinecraftBedrock"
         ),
         EmulatorProfile(
             id = "portmaster",

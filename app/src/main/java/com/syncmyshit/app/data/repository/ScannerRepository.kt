@@ -98,7 +98,11 @@ class ScannerRepository(
                 }
             }
 
-            val finalPath = bestPath ?: firstExistingCandidate
+            val defaultPath = if (storageRoots.isNotEmpty() && profile.candidatePaths.isNotEmpty()) {
+                val firstCandidate = profile.candidatePaths.first()
+                if (firstCandidate.startsWith("/")) firstCandidate else File(storageRoots.first(), firstCandidate).absolutePath
+            } else null
+            val finalPath = bestPath ?: firstExistingCandidate ?: if (isPackageInstalled) defaultPath else null
             val fileCount = bestCount
 
             // Include if either package is installed, or the save folder exists, or it's custom
@@ -137,7 +141,7 @@ class ScannerRepository(
         coveredSystems: Set<String>
     ): List<EmulatorProfile> {
         val additional = mutableListOf<EmulatorProfile>()
-        val baseFolders = listOf("roms", "Roms", "RetroArch/saves", "Saves")
+        val baseFolders = listOf("roms", "Roms", "RetroArch/saves", "Saves", "saves", "Emulation/saves", "EmuData")
         val checkedDirs = mutableSetOf<String>()
 
         val knownSystems = listOf(
@@ -152,7 +156,7 @@ class ScannerRepository(
             Triple("psx", "Sony PlayStation", listOf(".mcd", ".mcr", ".srm", ".sav")),
             Triple("ps1", "Sony PlayStation", listOf(".mcd", ".mcr", ".srm", ".sav")),
             Triple("ps2", "Sony PlayStation 2", listOf(".ps2", ".mcd")),
-            Triple("psp", "Sony PSP", listOf(".bin", ".sfo", ".ppst")),
+            Triple("psp", "Sony PSP", listOf(".bin", ".sfo", ".ppst", ".dat")),
             Triple("megadrive", "Sega Genesis", listOf(".srm", ".state")),
             Triple("genesis", "Sega Genesis", listOf(".srm", ".state")),
             Triple("dreamcast", "Sega Dreamcast", listOf(".bin", ".vmu", ".state"))
@@ -223,35 +227,46 @@ class ScannerRepository(
         }
     }
 
+    companion object {
+        private val SKIPPED_DIR_NAMES = setOf(
+            "android", "cache", "dump", "shaders", "resourcepacks", "logs", "log",
+            "gpu", "vk_graphics_pipeline_cache", "graphics_pipeline_cache",
+            "crash_dumps", "crashdumps", "screenshots", "themes", "theme", "cheats",
+            "amiibo", "dcim", "pictures", "music", "movies", "ringtones", "alarms",
+            "notifications", "podcasts", "audiobooks", "download", "documents",
+            "system", ".syncmyshit_backups"
+        )
+    }
+
+    private fun shouldTraverseDirectory(name: String): Boolean {
+        if (name.startsWith(".")) return false
+        return name.lowercase() !in SKIPPED_DIR_NAMES
+    }
+
     /**
      * Counts matching save files in [dir] without creating unnecessary File objects.
-     * Fast and bounded — will never hang regardless of directory size.
+     * Fast and bounded up to depth 7 — will never hang regardless of directory size.
      */
-    private fun countSaveFiles(dir: File, extensions: List<String>): Int {
-        if (!dir.exists() || !dir.isDirectory) return 0
+    private fun countSaveFiles(
+        dir: File,
+        extensions: List<String>,
+        currentDepth: Int = 0,
+        maxDepth: Int = 7
+    ): Int {
+        if (currentDepth > maxDepth || !dir.exists() || !dir.isDirectory) return 0
         if (extensions.isEmpty()) return 0
 
         var count = 0
         try {
-            // Check direct child files in dir
-            val directMatching = dir.list { _, name -> matchesExtension(name, extensions) }
-            if (directMatching != null) {
-                count += directMatching.size
-            }
-
-            // If no direct save files, check 1-level subdirectories (e.g. PSP SAVEDATA/ULES.../)
-            // Bounded to at most 30 subdirectories so it never stalls
-            if (count == 0) {
-                val subdirs = dir.listFiles { f ->
-                    f.isDirectory && !f.name.startsWith(".") && f.name != "Android" && f.name != ".syncmyshit_backups"
-                }?.take(30)
-
-                if (subdirs != null) {
-                    for (subdir in subdirs) {
-                        val subMatches = subdir.list { _, name -> matchesExtension(name, extensions) }
-                        if (subMatches != null) {
-                            count += subMatches.size
-                        }
+            val files = dir.listFiles() ?: return 0
+            for (file in files) {
+                if (file.isFile) {
+                    if (matchesExtension(file.name, extensions)) {
+                        count++
+                    }
+                } else if (file.isDirectory) {
+                    if (shouldTraverseDirectory(file.name)) {
+                        count += countSaveFiles(file, extensions, currentDepth + 1, maxDepth)
                     }
                 }
             }
@@ -259,23 +274,25 @@ class ScannerRepository(
         return count
     }
 
-    private fun collectFiles(dir: File, extensions: List<String>, outList: MutableList<File>) {
-        if (!dir.exists() || !dir.isDirectory) return
+    private fun collectFiles(
+        dir: File,
+        extensions: List<String>,
+        outList: MutableList<File>,
+        currentDepth: Int = 0,
+        maxDepth: Int = 7
+    ) {
+        if (currentDepth > maxDepth || !dir.exists() || !dir.isDirectory) return
         if (extensions.isEmpty()) return
         try {
             val files = dir.listFiles() ?: return
             for (file in files) {
-                if (file.isFile && matchesExtension(file.name, extensions)) {
-                    outList.add(file)
-                } else if (file.isDirectory && !file.name.startsWith(".")
-                    && file.name != "Android"
-                    && file.name != ".syncmyshit_backups"
-                ) {
-                    val subFiles = file.listFiles() ?: continue
-                    for (subFile in subFiles) {
-                        if (subFile.isFile && matchesExtension(subFile.name, extensions)) {
-                            outList.add(subFile)
-                        }
+                if (file.isFile) {
+                    if (matchesExtension(file.name, extensions)) {
+                        outList.add(file)
+                    }
+                } else if (file.isDirectory) {
+                    if (shouldTraverseDirectory(file.name)) {
+                        collectFiles(file, extensions, outList, currentDepth + 1, maxDepth)
                     }
                 }
             }
