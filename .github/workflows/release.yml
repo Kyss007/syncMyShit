@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'v*'
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -36,38 +38,39 @@ jobs:
         run: ./gradlew assembleDebug --stacktrace
 
       - name: Prepare Release Asset
+        id: prep
         run: |
           mkdir -p release-artifacts
-          TAG_NAME="${GITHUB_REF#refs/tags/}"
-          if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "refs/heads/main" ]; then
-            TAG_NAME="v1.0.0"
+          TAG="${GITHUB_REF#refs/tags/}"
+          if [ -z "$TAG" ] || [ "$TAG" = "$GITHUB_REF" ] || [ "$TAG" = "main" ]; then
+            TAG="v1.0.0"
           fi
-          cp app/build/outputs/apk/debug/app-debug.apk release-artifacts/syncMyShit-${TAG_NAME}.apk
+          echo "release_tag=$TAG" >> $GITHUB_OUTPUT
+          cp app/build/outputs/apk/debug/app-debug.apk "release-artifacts/syncMyShit-${TAG}.apk"
           ls -la release-artifacts/
 
       - name: Create GitHub Release and Upload APK
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
         with:
-          name: "syncMyShit Release ${{ github.ref_name }}"
-          tag_name: ${{ github.ref_name }}
+          name: "syncMyShit Release ${{ steps.prep.outputs.release_tag }}"
+          tag_name: ${{ steps.prep.outputs.release_tag }}
           files: release-artifacts/*.apk
           draft: false
           prerelease: false
           generate_release_notes: true
           body: |
-            ### 🎮 syncMyShit Release ${{ github.ref_name }}
+            ### 🎮 syncMyShit Release ${{ steps.prep.outputs.release_tag }}
             
             Automagic save file cloud sync for Android retro emulation handhelds.
             
             #### 📥 Direct Download:
-            - **[syncMyShit-${{ github.ref_name }}.apk](../../releases/download/${{ github.ref_name }}/syncMyShit-${{ github.ref_name }}.apk)** (Ready to install)
+            - **[syncMyShit-${{ steps.prep.outputs.release_tag }}.apk](https://github.com/Kyss007/syncMyShit/releases/download/${{ steps.prep.outputs.release_tag }}/syncMyShit-${{ steps.prep.outputs.release_tag }}.apk)** (Ready to install)
             
             #### 🌟 Highlights:
             - **Pre-Play & Post-Play Automagic Sync**: Checks Google Drive before you play, uploads save files right after you quit.
             - **Full Scoped Storage Support**: Works seamlessly with **DraStic**, **Dolphin**, **AetherSX2**, and any emulator inside `Android/data/` using SAF and Shizuku.
-            - **20+ Systems & Recomps Pre-configured**: RetroArch, PPSSPP, Dolphin, DuckStation, Vita3K, Yuzu/Suyu, Zelda 64 Recompiled, Ship of Harkinian, SM64, Balatro, PortMaster, and more.
-            - **Custom Paths**: Add any directory or standalone game directly in the app.
+            - **All CocoonFE Emulators & Systems Supported**: Over 125 platforms and 140+ emulator package variants pre-configured out of the box (RetroArch, PPSSPP, Dolphin, DuckStation, Vita3K, Yuzu/Suyu/Sudachi, DraStic, Broglia suite, recomps, ports, etc.).
+            - **Custom Paths**: Add any directory, recomp, or standalone game directly in the app.
             - **Zero Save-Loss Protection**: Timestamped local backups (`.syncmyshit_backups/`) and cloud snapshots (`syncMyShit/_backups/`) prevent lost progress.
             - **100% Free & Dedicated to the Public Domain** (The Unlicense).
 

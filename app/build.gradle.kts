@@ -58,6 +58,8 @@ android {
             excludes += "META-INF/NOTICE.txt"
             excludes += "META-INF/notice.txt"
             excludes += "META-INF/ASL2.0"
+            excludes += "META-INF/INDEX.LIST"
+            excludes += "META-INF/io.netty.versions.properties"
         }
     }
 }

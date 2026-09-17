@@ -234,7 +234,7 @@ fun DashboardScreen(
                         }
                         Spacer(modifier = Modifier.height(12.dp))
                         LinearProgressIndicator(
-                            progress = { if (state.totalSteps > 0) state.currentStep.toFloat() / state.totalSteps else 0f },
+                            progress = if (state.totalSteps > 0) state.currentStep.toFloat() / state.totalSteps else 0f,
                             modifier = Modifier.fillMaxWidth(),
                             color = NeonCyan,
                             trackColor = DarkBorder
