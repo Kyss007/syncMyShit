@@ -62,7 +62,7 @@ If your Android handheld has Google Play Services installed (standard on Odin 2,
 
 ---
 
-## 🔒 Privacy & Safety Guarantee
+## 🔒 Privacy & Scopes
 
-- **Zero save loss**: Local `.bak` snapshots are kept in `.syncmyshit_backups/` and cloud backups in `syncMyShit/_backups/`.
-- **Restricted scope (`drive.file`)**: The app can **only** read and write files that it creates inside its own folder. It **cannot** view, read, or modify your personal Google Drive documents, photos, or files.
+- **Backup copies**: Local `.bak` snapshots are kept in `.syncmyshit_backups/` and cloud backups in `syncMyShit/_backups/`.
+- **Restricted scope (`drive.file`)**: The app requests only `drive.file` scope, meaning it only has access to files it creates itself in its own folder. It cannot access your other personal Google Drive documents or files.

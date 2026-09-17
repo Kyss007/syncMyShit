@@ -345,7 +345,7 @@ fun SettingsScreen(
                     )
                 }
                 Text(
-                    text = "Version 1.0.0 • Designed for Retroid, Odin, Anbernic & Android Handhelds",
+                    text = "Version 1.0.0 (Experimental) • Target: Android 8.0+",
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextSecondary
                 )
