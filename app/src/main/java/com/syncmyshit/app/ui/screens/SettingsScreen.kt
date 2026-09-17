@@ -40,6 +40,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.syncmyshit.app.ui.components.dpadFocusable
@@ -66,6 +69,19 @@ fun SettingsScreen(
     val syncInterval by viewModel.syncIntervalMinutes.collectAsState()
     val backupsCount by viewModel.keepBackupsCount.collectAsState()
     val customClientId by viewModel.customOAuthClientId.collectAsState()
+
+    val context = LocalContext.current
+    val versionName = remember {
+        runCatching {
+            val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.getPackageInfo(context.packageName, PackageManager.PackageInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.getPackageInfo(context.packageName, 0)
+            }
+            packageInfo.versionName
+        }.getOrDefault("1.0.1")
+    }
 
     var customIdInput by remember(customClientId) { mutableStateOf(customClientId) }
     var showCustomOAuthConfig by remember { mutableStateOf(false) }
@@ -345,7 +361,7 @@ fun SettingsScreen(
                     )
                 }
                 Text(
-                    text = "Version 1.0.0 (Experimental) • Target: Android 8.0+",
+                    text = "Version $versionName • Target: Android 8.0+",
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextSecondary
                 )

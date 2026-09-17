@@ -64,7 +64,8 @@ jobs:
           mkdir -p release-artifacts
           TAG="${GITHUB_REF#refs/tags/}"
           if [ -z "$TAG" ] || [ "$TAG" = "$GITHUB_REF" ] || [ "$TAG" = "main" ]; then
-            TAG="v1.0.0"
+            VER=$(grep "versionName" app/build.gradle.kts | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
+            TAG="v${VER:-1.0.2}"
           fi
           echo "release_tag=$TAG" >> $GITHUB_OUTPUT
           cp app/build/outputs/apk/debug/app-debug.apk "release-artifacts/syncMyShit-${TAG}.apk"
