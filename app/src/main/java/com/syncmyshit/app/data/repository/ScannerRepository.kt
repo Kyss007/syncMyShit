@@ -92,19 +92,23 @@ class ScannerRepository(
 
     private fun findDirectoryWithExtensions(roots: List<File>, extensions: List<String>): Pair<String, Int>? {
         val searchSubdirs = listOf(
-            "", "roms", "Roms", "ROMs", "Games", "games", "Emulation", "emulation",
-            "RetroArch", "retroarch", "DraStic", "drastic", "Saves", "saves",
-            "ES-DE", "Daijisho", "RetroDeck"
+            "roms", "Roms", "ROMs", "Games", "games", "Emulation/saves", "Emulation/roms",
+            "RetroArch/saves", "Saves", "saves", "drastic", "DraStic", "DraStic/backup", "drastic/backup"
         )
         for (root in roots) {
             for (sub in searchSubdirs) {
-                val base = if (sub.isEmpty()) root else File(root, sub)
+                val base = File(root, sub)
                 if (base.exists() && base.isDirectory && base.canRead()) {
-                    base.walkTopDown().maxDepth(3).forEach { dir ->
-                        if (dir.isDirectory && dir.name != "Android" && !dir.name.startsWith(".")) {
-                            val count = countSaveFiles(dir, extensions)
-                            if (count > 0) {
-                                return Pair(dir.absolutePath, count)
+                    val count = countSaveFiles(base, extensions)
+                    if (count > 0) return Pair(base.absolutePath, count)
+
+                    // Check immediate children (e.g. Roms/nds, Roms/gba)
+                    val children = base.listFiles() ?: continue
+                    for (child in children) {
+                        if (child.isDirectory && !child.name.startsWith(".") && child.name != "Android") {
+                            val childCount = countSaveFiles(child, extensions)
+                            if (childCount > 0) {
+                                return Pair(child.absolutePath, childCount)
                             }
                         }
                     }
@@ -116,7 +120,7 @@ class ScannerRepository(
 
     private fun autoDiscoverUnregisteredSaveFolders(
         storageRoots: List<File>,
-        alreadyDiscoveredPaths: Set<String>
+        alreadyDiscoveredPaths: MutableSet<String>
     ): List<EmulatorProfile> {
         val additional = mutableListOf<EmulatorProfile>()
         val searchFolders = listOf(
@@ -148,26 +152,28 @@ class ScannerRepository(
             for (searchBase in searchFolders) {
                 val base = File(root, searchBase)
                 if (base.exists() && base.isDirectory && base.canRead()) {
-                    base.walkTopDown().maxDepth(3).forEach { dir ->
-                        if (dir.isDirectory && !dir.name.startsWith(".") && dir.name != "Android") {
-                            val abs = dir.absolutePath
+                    val children = base.listFiles() ?: continue
+                    for (child in children) {
+                        if (child.isDirectory && !child.name.startsWith(".") && child.name != "Android") {
+                            val abs = child.absolutePath
                             if (!alreadyDiscoveredPaths.contains(abs)) {
-                                val folderLower = dir.name.lowercase()
+                                val folderLower = child.name.lowercase()
                                 val systemInfo = knownSystems[folderLower]
                                 if (systemInfo != null) {
-                                    val count = countSaveFiles(dir, systemInfo.second)
+                                    val count = countSaveFiles(child, systemInfo.second)
                                     if (count > 0) {
+                                        alreadyDiscoveredPaths.add(abs)
                                         additional.add(
                                             EmulatorProfile(
-                                                id = "auto_${dir.name.lowercase()}_${abs.hashCode()}",
-                                                name = "${systemInfo.first} (${dir.name})",
+                                                id = "auto_${child.name.lowercase()}_${abs.hashCode()}",
+                                                name = "${systemInfo.first} (${child.name})",
                                                 system = systemInfo.first,
                                                 category = ProfileCategory.EMULATOR,
                                                 packageNames = emptyList(),
                                                 candidatePaths = listOf(abs),
                                                 resolvedSavePath = abs,
                                                 fileExtensions = systemInfo.second,
-                                                driveSubfolder = dir.name,
+                                                driveSubfolder = child.name,
                                                 fileCount = count,
                                                 isEnabled = true
                                             )
@@ -207,23 +213,43 @@ class ScannerRepository(
     }
 
     private fun countSaveFiles(dir: File, extensions: List<String>): Int {
-        if (!dir.exists()) return 0
+        if (!dir.exists() || !dir.isDirectory) return 0
         var count = 0
-        dir.walkTopDown().maxDepth(6).forEach { file ->
-            if (file.isFile && matchesExtension(file.name, extensions)) {
-                count++
+        try {
+            val files = dir.listFiles() ?: return 0
+            for (file in files) {
+                if (file.isFile && matchesExtension(file.name, extensions)) {
+                    count++
+                } else if (file.isDirectory && !file.name.startsWith(".") && file.name != "Android") {
+                    val subFiles = file.listFiles() ?: continue
+                    for (subFile in subFiles) {
+                        if (subFile.isFile && matchesExtension(subFile.name, extensions)) {
+                            count++
+                        }
+                    }
+                }
             }
-        }
+        } catch (_: Exception) {}
         return count
     }
 
     private fun collectFiles(dir: File, extensions: List<String>, outList: MutableList<File>) {
-        if (!dir.exists()) return
-        dir.walkTopDown().maxDepth(6).forEach { file ->
-            if (file.isFile && matchesExtension(file.name, extensions)) {
-                outList.add(file)
+        if (!dir.exists() || !dir.isDirectory) return
+        try {
+            val files = dir.listFiles() ?: return
+            for (file in files) {
+                if (file.isFile && matchesExtension(file.name, extensions)) {
+                    outList.add(file)
+                } else if (file.isDirectory && !file.name.startsWith(".") && file.name != "Android") {
+                    val subFiles = file.listFiles() ?: continue
+                    for (subFile in subFiles) {
+                        if (subFile.isFile && matchesExtension(subFile.name, extensions)) {
+                            outList.add(subFile)
+                        }
+                    }
+                }
             }
-        }
+        } catch (_: Exception) {}
     }
 
     private fun matchesExtension(fileName: String, extensions: List<String>): Boolean {
