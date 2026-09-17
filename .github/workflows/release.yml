@@ -49,6 +49,14 @@ jobs:
         run: |
           echo "=== GRADLE BUILD FAILED: LOG DUMP ==="
           tail -n 250 gradle_build.log
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan ci-debug-log || git checkout -B ci-debug-log
+          git rm -rf . || true
+          cp gradle_build.log build-failure.log
+          git add build-failure.log
+          git commit -m "ci: capture build failure log"
+          git push -f origin ci-debug-log || true
 
       - name: Prepare Release Asset
         id: prep

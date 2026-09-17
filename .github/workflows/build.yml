@@ -44,6 +44,14 @@ jobs:
         run: |
           echo "=== TEST FAILED: LOG DUMP ==="
           tail -n 250 test_log.log
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan ci-debug-log || git checkout -B ci-debug-log
+          git rm -rf . || true
+          cp test_log.log build-failure.log
+          git add build-failure.log
+          git commit -m "ci: capture test failure log"
+          git push -f origin ci-debug-log || true
 
       - name: Build Debug APK
         shell: bash
