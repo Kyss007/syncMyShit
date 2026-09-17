@@ -4,13 +4,21 @@
 ### Automagic Cloud Save Sync for Android Retro Emulation Handhelds
 
 [![Android](https://img.shields.io/badge/Platform-Android%208.0%2B-brightgreen?logo=android)](https://www.android.com/)
+[![Download APK](https://img.shields.io/badge/Download-Latest%20Release%20APK-00E5FF?style=for-the-badge&logo=android)](https://github.com/Kyss007/syncMyShit/releases/latest)
 [![Kotlin](https://img.shields.io/badge/Language-Kotlin%201.9-purple?logo=kotlin)](https://kotlinlang.org/)
-[![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose%20Material%203-blue?logo=jetpackcompose)](https://developer.android.com/jetpack/compose)
 [![Google Drive](https://img.shields.io/badge/Cloud-Google%20Drive%20v3-yellow?logo=googledrive)](https://developers.google.com/drive)
 [![License: Unlicense](https://img.shields.io/badge/License-The%20Unlicense%20(Public%20Domain)-green.svg)](LICENSE)
 [![Cost](https://img.shields.io/badge/Cost-100%25%20Free%20Forever-success.svg)](LICENSE)
 
 *Play on your Odin 2 on the couch, pick right back up on your Retroid Pocket on the train. Zero hassle. Zero save loss.*
+
+---
+
+### 📥 [Download Ready-to-Install APK](https://github.com/Kyss007/syncMyShit/releases/latest)
+No compiling or developer knowledge required! Pre-built APKs are compiled automatically for every release:
+- **[Download Latest APK from GitHub Releases](https://github.com/Kyss007/syncMyShit/releases/latest)** (Direct link to the `.apk` file)
+- **[All Available Releases & Builds](https://github.com/Kyss007/syncMyShit/releases)**
+- **Installation**: Download the `.apk` directly to your Android device, tap it to install (allow *"Install unknown apps"* if prompted), and follow the 3-step setup wizard!
 
 ---
 
