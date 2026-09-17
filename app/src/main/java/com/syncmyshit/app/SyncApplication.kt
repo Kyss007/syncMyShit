@@ -27,7 +27,7 @@ class SyncApplication : Application() {
         NotificationHelper.createNotificationChannels(this)
 
         preferencesManager = PreferencesManager(this)
-        authManager = GoogleDriveAuthManager(this)
+        authManager = GoogleDriveAuthManager(this, preferencesManager)
         scannerRepository = ScannerRepository(this, preferencesManager)
         syncRepository = SyncRepository(this, preferencesManager, scannerRepository, authManager)
     }

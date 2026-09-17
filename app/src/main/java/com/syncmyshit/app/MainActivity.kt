@@ -6,6 +6,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -58,6 +60,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        handleOAuthIntent(intent)
+
         setContent {
             SyncMyShitTheme {
                 val navController = rememberNavController()
@@ -94,6 +98,27 @@ class MainActivity : ComponentActivity() {
                     setupViewModel = setupViewModel,
                     startDestination = startDestination
                 )
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleOAuthIntent(intent)
+    }
+
+    private fun handleOAuthIntent(intent: Intent?) {
+        val uri = intent?.data ?: return
+        if (uri.scheme == "com.syncmyshit.app") {
+            val app = application as SyncApplication
+            lifecycleScope.launch {
+                val result = app.authManager.handleOAuthCallback(uri)
+                if (result.isSuccess) {
+                    val email = result.getOrNull()
+                    setupViewModel.onWebAuthSuccess(email)
+                } else {
+                    setupViewModel.setAuthError("Web Login Error: ${result.exceptionOrNull()?.message}")
+                }
             }
         }
     }

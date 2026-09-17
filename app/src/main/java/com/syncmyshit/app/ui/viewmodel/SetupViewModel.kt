@@ -47,13 +47,15 @@ class SetupViewModel(application: Application) : AndroidViewModel(application) {
         checkAuth()
     }
 
+    val signedInEmail = preferencesManager.googleAccountEmail
+
     fun refreshPermissions() {
         _hasStoragePermission.value = StorageAccessHelper.hasAllFilesAccess()
         _hasUsagePermission.value = StorageAccessHelper.hasUsageStatsPermission(getApplication())
     }
 
     fun checkAuth() {
-        _signedInAccount.value = authManager.checkExistingSignIn()
+        _signedInAccount.value = authManager.currentAccount.value
     }
 
     fun onSignInSuccess(account: GoogleSignInAccount) {
@@ -61,6 +63,24 @@ class SetupViewModel(application: Application) : AndroidViewModel(application) {
         _authErrorMessage.value = null
         viewModelScope.launch {
             preferencesManager.setGoogleAccount(account.email)
+        }
+    }
+
+    fun onWebAuthSuccess(email: String?) {
+        _authErrorMessage.value = null
+        if (!email.isNullOrBlank()) {
+            viewModelScope.launch {
+                preferencesManager.setGoogleAccount(email)
+            }
+        }
+    }
+
+    fun startWebLogin(customClientId: String? = null, customClientSecret: String? = null) {
+        viewModelScope.launch {
+            val started = authManager.startWebLogin(customClientId, customClientSecret)
+            if (!started) {
+                _authErrorMessage.value = "Failed to launch browser for Web Login. Please check if a web browser is installed."
+            }
         }
     }
 

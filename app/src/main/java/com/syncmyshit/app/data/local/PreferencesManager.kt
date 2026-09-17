@@ -31,6 +31,11 @@ class PreferencesManager(private val context: Context) {
         val KEY_CUSTOM_OAUTH_CLIENT_ID = stringPreferencesKey("custom_oauth_client_id")
         val KEY_CUSTOM_OAUTH_CLIENT_SECRET = stringPreferencesKey("custom_oauth_client_secret")
         val KEY_LAST_SYNC_TIMESTAMP = stringPreferencesKey("last_sync_timestamp")
+        val KEY_OAUTH_ACCESS_TOKEN = stringPreferencesKey("oauth_access_token")
+        val KEY_OAUTH_REFRESH_TOKEN = stringPreferencesKey("oauth_refresh_token")
+        val KEY_OAUTH_EXPIRES_AT = stringPreferencesKey("oauth_expires_at")
+        val KEY_OAUTH_CODE_VERIFIER = stringPreferencesKey("oauth_code_verifier")
+        val KEY_OAUTH_STATE = stringPreferencesKey("oauth_state")
     }
 
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = false }
@@ -165,6 +170,45 @@ class PreferencesManager(private val context: Context) {
 
             current.removeAll { it.id == profileId }
             prefs[KEY_CUSTOM_PROFILES_JSON] = json.encodeToString(current)
+        }
+    }
+
+    val oauthAccessToken: Flow<String?> = context.dataStore.data.map { it[KEY_OAUTH_ACCESS_TOKEN] }
+    val oauthRefreshToken: Flow<String?> = context.dataStore.data.map { it[KEY_OAUTH_REFRESH_TOKEN] }
+    val oauthCodeVerifier: Flow<String?> = context.dataStore.data.map { it[KEY_OAUTH_CODE_VERIFIER] }
+    val oauthState: Flow<String?> = context.dataStore.data.map { it[KEY_OAUTH_STATE] }
+
+    suspend fun saveOAuthTokens(accessToken: String, refreshToken: String?, expiresInSeconds: Long) {
+        val expiresAt = System.currentTimeMillis() + (expiresInSeconds * 1000L)
+        context.dataStore.edit { prefs ->
+            prefs[KEY_OAUTH_ACCESS_TOKEN] = accessToken
+            if (refreshToken != null) {
+                prefs[KEY_OAUTH_REFRESH_TOKEN] = refreshToken
+            }
+            prefs[KEY_OAUTH_EXPIRES_AT] = expiresAt.toString()
+        }
+    }
+
+    suspend fun saveOAuthPkceSession(verifier: String, state: String) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_OAUTH_CODE_VERIFIER] = verifier
+            prefs[KEY_OAUTH_STATE] = state
+        }
+    }
+
+    suspend fun clearOAuthPkceSession() {
+        context.dataStore.edit { prefs ->
+            prefs.remove(KEY_OAUTH_CODE_VERIFIER)
+            prefs.remove(KEY_OAUTH_STATE)
+        }
+    }
+
+    suspend fun clearOAuthTokens() {
+        context.dataStore.edit { prefs ->
+            prefs.remove(KEY_OAUTH_ACCESS_TOKEN)
+            prefs.remove(KEY_OAUTH_REFRESH_TOKEN)
+            prefs.remove(KEY_OAUTH_EXPIRES_AT)
+            prefs.remove(KEY_GOOGLE_ACCOUNT_EMAIL)
         }
     }
 }

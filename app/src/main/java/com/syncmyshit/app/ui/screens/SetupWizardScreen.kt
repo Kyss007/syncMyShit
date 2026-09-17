@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Games
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Warning
@@ -98,10 +99,14 @@ fun SetupWizardScreen(
     val hasStoragePermission by viewModel.hasStoragePermission.collectAsState()
     val hasUsagePermission by viewModel.hasUsagePermission.collectAsState()
     val signedInAccount by viewModel.signedInAccount.collectAsState()
+    val signedInEmail by viewModel.signedInEmail.collectAsState(initial = null)
     val authError by viewModel.authErrorMessage.collectAsState()
     val customClientId by viewModel.customOAuthClientId.collectAsState("")
     val discoveredList by viewModel.discoveredEmulators.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
+
+    val isConnected = !signedInEmail.isNullOrBlank() || signedInAccount != null
+    val currentEmail = signedInEmail ?: signedInAccount?.email ?: ""
 
     var customIdInput by remember(customClientId) { mutableStateOf(customClientId) }
     var showCustomOAuthConfig by remember { mutableStateOf(false) }
@@ -326,7 +331,7 @@ fun SetupWizardScreen(
                         color = TextSecondary
                     )
 
-                    if (signedInAccount != null) {
+                    if (isConnected) {
                         Card(
                             colors = CardDefaults.cardColors(containerColor = DarkBackground),
                             shape = RoundedCornerShape(12.dp)
@@ -339,24 +344,39 @@ fun SetupWizardScreen(
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column {
                                     Text("Connected Successfully", fontWeight = FontWeight.Bold, color = StatusGreen)
-                                    Text(signedInAccount!!.email ?: "", color = TextSecondary)
+                                    Text(currentEmail, color = TextSecondary)
                                 }
                             }
                         }
                     } else {
+                        // Option 1 (Recommended / Universal): Web Browser Login
                         Button(
+                            onClick = {
+                                viewModel.setAuthError(null)
+                                viewModel.startWebLogin(customClientId.ifBlank { null })
+                            },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = NeonCyan)
+                        ) {
+                            Icon(Icons.Default.Language, null, tint = DarkSurface)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("Sign In via Web Browser (Universal / GammaOS)", color = DarkSurface, fontWeight = FontWeight.Bold)
+                        }
+
+                        // Option 2 (GMS 1-Tap): Google Play Services
+                        OutlinedButton(
                             onClick = {
                                 viewModel.setAuthError(null)
                                 val app = context.applicationContext as SyncApplication
                                 val intent = app.authManager.getSignInIntent(customClientId.ifBlank { null })
                                 signInLauncher.launch(intent)
                             },
-                            modifier = Modifier.fillMaxWidth().height(50.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = NeonCyan)
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary)
                         ) {
-                            Icon(Icons.Default.Cloud, null, tint = DarkSurface)
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text("Sign In with Google", color = DarkSurface, fontWeight = FontWeight.Bold)
+                            Icon(Icons.Default.Cloud, null, modifier = Modifier.size(18.dp), tint = TextSecondary)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Sign In with Google Play Services (GMS)")
                         }
 
                         // Auth Error Alert & Troubleshooting
@@ -487,7 +507,7 @@ fun SetupWizardScreen(
                             Text("Back", color = TextSecondary)
                         }
 
-                        if (signedInAccount != null) {
+                        if (isConnected) {
                             Button(
                                 onClick = { viewModel.nextStep() },
                                 colors = ButtonDefaults.buttonColors(containerColor = NeonCyan)
@@ -495,8 +515,11 @@ fun SetupWizardScreen(
                                 Text("Continue to Step 3", color = DarkSurface, fontWeight = FontWeight.Bold)
                             }
                         } else {
-                            TextButton(onClick = { viewModel.nextStep() }) {
-                                Text("Skip for now →", color = TextSecondary)
+                            Button(
+                                onClick = { viewModel.nextStep() },
+                                colors = ButtonDefaults.buttonColors(containerColor = DarkSurfaceElevated)
+                            ) {
+                                Text("Skip for now →", color = TextPrimary)
                             }
                         }
                     }

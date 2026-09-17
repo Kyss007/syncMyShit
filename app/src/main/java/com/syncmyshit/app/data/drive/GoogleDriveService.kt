@@ -1,9 +1,9 @@
 package com.syncmyshit.app.data.drive
 
 import android.content.Context
-import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
 import com.google.api.client.http.FileContent
+import com.google.api.client.http.HttpRequestInitializer
 import com.google.api.client.http.javanet.NetHttpTransport
 import com.google.api.client.json.gson.GsonFactory
 import com.google.api.services.drive.Drive
@@ -21,26 +21,43 @@ import java.util.Locale
 
 class GoogleDriveService(
     private val context: Context,
-    private val account: GoogleSignInAccount
+    private val authManager: GoogleDriveAuthManager
 ) {
 
-    private val drive: Drive by lazy {
-        val credential = GoogleAccountCredential.usingOAuth2(
-            context,
-            Collections.singleton(DriveScopes.DRIVE_FILE)
-        ).apply {
-            selectedAccount = account.account
+    private suspend fun getDrive(): Drive {
+        val token = authManager.getValidAccessToken()
+            ?: throw IllegalStateException("Google Drive is not authenticated")
+
+        if (token == "GMS_CREDENTIAL") {
+            val account = authManager.currentAccount.value
+                ?: throw IllegalStateException("GMS Account is missing")
+            val credential = GoogleAccountCredential.usingOAuth2(
+                context,
+                Collections.singleton(DriveScopes.DRIVE_FILE)
+            ).apply {
+                selectedAccount = account.account
+            }
+            return Drive.Builder(
+                NetHttpTransport(),
+                GsonFactory.getDefaultInstance(),
+                credential
+            ).setApplicationName("syncMyShit").build()
         }
 
-        Drive.Builder(
+        // Universal Web OAuth token (works on all Android devices, GammaOS, de-Googled)
+        val requestInitializer = HttpRequestInitializer { request ->
+            request.headers.authorization = "Bearer $token"
+        }
+        return Drive.Builder(
             NetHttpTransport(),
             GsonFactory.getDefaultInstance(),
-            credential
+            requestInitializer
         ).setApplicationName("syncMyShit").build()
     }
 
     suspend fun getOrCreateRootFolder(folderName: String = "syncMyShit"): Result<DriveFileInfo> = withContext(Dispatchers.IO) {
         runCatching {
+            val drive = getDrive()
             val q = "mimeType = 'application/vnd.google-apps.folder' and name = '$folderName' and trashed = false and 'root' in parents"
             val result: FileList = drive.files().list()
                 .setQ(q)
@@ -60,7 +77,6 @@ class GoogleDriveService(
                     parentId = "root"
                 )
             } else {
-                // Create root folder
                 val metadata = GoogleDriveFile().apply {
                     name = folderName
                     mimeType = "application/vnd.google-apps.folder"
@@ -84,6 +100,7 @@ class GoogleDriveService(
 
     suspend fun getOrCreateSubfolder(folderName: String, parentFolderId: String): Result<DriveFileInfo> = withContext(Dispatchers.IO) {
         runCatching {
+            val drive = getDrive()
             val q = "mimeType = 'application/vnd.google-apps.folder' and name = '$folderName' and trashed = false and '$parentFolderId' in parents"
             val result = drive.files().list()
                 .setQ(q)
@@ -127,6 +144,7 @@ class GoogleDriveService(
 
     suspend fun listFilesInFolder(parentFolderId: String): Result<List<DriveFileInfo>> = withContext(Dispatchers.IO) {
         runCatching {
+            val drive = getDrive()
             val q = "'$parentFolderId' in parents and trashed = false"
             val result = drive.files().list()
                 .setQ(q)
@@ -155,14 +173,13 @@ class GoogleDriveService(
         targetFileName: String = localFile.name
     ): Result<DriveFileInfo> = withContext(Dispatchers.IO) {
         runCatching {
-            // Check if file already exists in folder
+            val drive = getDrive()
             val existingFiles = listFilesInFolder(parentFolderId).getOrDefault(emptyList())
             val existing = existingFiles.firstOrNull { it.name == targetFileName }
 
             val mediaContent = FileContent("application/octet-stream", localFile)
 
             val uploadedFile: GoogleDriveFile = if (existing != null) {
-                // Update existing file in-place
                 val updateMetadata = GoogleDriveFile().apply {
                     name = targetFileName
                 }
@@ -170,7 +187,6 @@ class GoogleDriveService(
                     .setFields("id, name, mimeType, modifiedTime, size, md5Checksum, parents")
                     .execute()
             } else {
-                // Create new file
                 val createMetadata = GoogleDriveFile().apply {
                     name = targetFileName
                     parents = listOf(parentFolderId)
@@ -197,7 +213,7 @@ class GoogleDriveService(
         destinationFile: File
     ): Result<File> = withContext(Dispatchers.IO) {
         runCatching {
-            // Write to temporary file first to avoid corrupted half-downloads
+            val drive = getDrive()
             val tempFile = File(destinationFile.parentFile, "${destinationFile.name}.downloading")
             if (tempFile.exists()) tempFile.delete()
             
@@ -207,10 +223,8 @@ class GoogleDriveService(
                 drive.files().get(driveFileId).executeMediaAndDownloadTo(outputStream)
             }
 
-            // Atomic rename
             if (destinationFile.exists()) destinationFile.delete()
             if (!tempFile.renameTo(destinationFile)) {
-                // Fallback copy if rename failed across filesystems
                 tempFile.copyTo(destinationFile, overwrite = true)
                 tempFile.delete()
             }
@@ -225,6 +239,7 @@ class GoogleDriveService(
         originalName: String
     ): Result<DriveFileInfo> = withContext(Dispatchers.IO) {
         runCatching {
+            val drive = getDrive()
             val dateStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
             val backupName = "${originalName}_$dateStamp.bak"
 

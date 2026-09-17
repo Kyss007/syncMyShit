@@ -56,8 +56,8 @@ class SyncRepository(
     }
 
     private fun getDriveService(): GoogleDriveService? {
-        val account = authManager.currentAccount.value ?: authManager.checkExistingSignIn()
-        return account?.let { GoogleDriveService(context, it) }
+        if (!authManager.checkExistingSignIn()) return null
+        return GoogleDriveService(context, authManager)
     }
 
     suspend fun syncAllProfiles(): Result<Int> = withContext(Dispatchers.IO) {

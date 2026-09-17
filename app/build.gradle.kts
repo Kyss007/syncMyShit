@@ -12,8 +12,8 @@ android {
         applicationId = "com.syncmyshit.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 4
-        versionName = "1.0.3"
+        versionCode = 5
+        versionName = "1.0.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -112,8 +112,12 @@ dependencies {
     // Background Tasks (WorkManager)
     implementation("androidx.work:work-runtime-ktx:2.9.0")
 
-    // Google Play Services Auth
+    // Google Play Services Auth (Optional for GMS devices)
     implementation("com.google.android.gms:play-services-auth:21.0.0")
+
+    // Universal Web OAuth (for de-Googled, GammaOS, and all Android devices)
+    implementation("androidx.browser:browser:1.8.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     // Google Drive REST API v3
     implementation("com.google.api-client:google-api-client-android:2.2.0") {
