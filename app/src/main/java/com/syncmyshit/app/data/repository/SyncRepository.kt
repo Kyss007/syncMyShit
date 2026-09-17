@@ -43,7 +43,7 @@ import java.util.UUID
  * ### Sync flow per save file (per device):
  * 1. Upload local file → `_devices/<device-id>/<save.sav>` (always, tracks this device's latest)
  * 2. Archive previous canonical to `_history/` before overwriting it
- * 3. Scan ALL `_devices/*/` subfolders → find the one with the newest `<save.sav>`
+ * 3. Scan ALL `_devices/<dev>/` subfolders → find the one with the newest `<save.sav>`
  * 4. If this device is newest → overwrite the canonical file with our version
  * 5. If another device is newest → download that device's version as the canonical file AND
  *    download it locally (with a local backup first), so this device is now up to date
@@ -327,7 +327,7 @@ class SyncRepository(
     }
 
     /**
-     * Scans all `_devices/*/` subfolders for [fileName] and returns the device whose
+     * Scans all `_devices/<dev>/` subfolders for [fileName] and returns the device whose
      * copy has the latest modifiedTime. Includes this device's just-uploaded version
      * using [localFile] as the reference.
      *
