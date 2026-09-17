@@ -116,12 +116,16 @@ object StorageAccessHelper {
             }
         }
 
-        // 5. /mnt/media_rw/ — used by GammaOS Nano on the Anbernic RG DS for SD card
+        // 5. /mnt/media_rw/ — fallback ONLY if not already found in /storage/
         runCatching {
             val mntrw = File("/mnt/media_rw")
             mntrw.listFiles()?.forEach { file ->
                 if (file.isDirectory && file.canRead()) {
-                    roots.add(file.canonicalFile)
+                    val canonical = file.canonicalFile
+                    val alreadyPresent = roots.any { it.name == file.name || it.canonicalPath == canonical.canonicalPath }
+                    if (!alreadyPresent) {
+                        roots.add(canonical)
+                    }
                 }
             }
         }
@@ -137,19 +141,23 @@ object StorageAccessHelper {
             "/sdcard2",
             "/storage/sdcard1",
             "/storage/extSdCard",
-            "/storage/external_SD",
-            "/storage/emulated/0",
-            "/data/media/0",            // some de-Googled ROMs symlink here
+            "/storage/external_SD"
         )
         for (path in legacyPaths) {
             runCatching {
                 val f = File(path)
                 if (f.exists() && f.canRead() && f.isDirectory) {
-                    roots.add(f.canonicalFile)
+                    val canonical = f.canonicalFile
+                    val alreadyPresent = roots.any { it.canonicalPath == canonical.canonicalPath }
+                    if (!alreadyPresent) {
+                        roots.add(canonical)
+                    }
                 }
             }
         }
 
-        return roots.toList()
+        val result = roots.distinctBy { it.canonicalPath }
+        android.util.Log.d("syncMyShit", "Storage roots found (${result.size}): ${result.map { it.absolutePath }}")
+        return result
     }
 }

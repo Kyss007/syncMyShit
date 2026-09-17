@@ -30,5 +30,7 @@ class SyncApplication : Application() {
         authManager = GoogleDriveAuthManager(this, preferencesManager)
         scannerRepository = ScannerRepository(this, preferencesManager)
         syncRepository = SyncRepository(this, preferencesManager, scannerRepository, authManager)
+
+        com.syncmyshit.app.utils.RootAccessHelper.setupEmulatorMounts()
     }
 }

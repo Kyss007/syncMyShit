@@ -42,6 +42,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -574,32 +575,103 @@ fun SetupWizardScreen(
                         fontWeight = FontWeight.Bold
                     )
 
-                    val saveTotal = discoveredList.sumOf { it.fileCount }
-                    Text(
-                        text = "We scanned your handheld device and detected ${discoveredList.size} systems with $saveTotal save files ready to sync!",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary
-                    )
+                    // ── Scanning in progress ──────────────────────────────────
+                    if (isScanning) {
+                        Text(
+                            text = "Scanning all storage locations for emulators and save files…",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextSecondary
+                        )
+                        LinearProgressIndicator(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = NeonCyan,
+                            trackColor = DarkBackground
+                        )
+                        Text(
+                            text = "This takes a moment on first run — checking internal storage, SD card, and all known emulator paths.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextMuted
+                        )
+                    } else {
+                        // ── Scan done ─────────────────────────────────────────
+                        val withSaves = discoveredList.filter { it.fileCount > 0 }
+                        val detected  = discoveredList.filter { it.fileCount == 0 }
+                        val saveTotal = discoveredList.sumOf { it.fileCount }
 
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        discoveredList.take(6).forEach { profile ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                        if (discoveredList.isEmpty()) {
+                            // Nothing at all found
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = DarkBackground),
+                                shape = RoundedCornerShape(12.dp)
                             ) {
-                                Text(profile.name, color = TextPrimary, fontWeight = FontWeight.Medium)
-                                Text("${profile.fileCount} saves", color = NeonCyan)
+                                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text(
+                                        text = "⚠️ No emulators or save files detected",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = StatusYellow
+                                    )
+                                    Text(
+                                        text = "This usually means:\n" +
+                                               "• Storage permission was not granted (go back to Step 1)\n" +
+                                               "• You haven't played any games yet — that's OK! " +
+                                               "Add paths manually after setup, or play a game first then rescan.\n" +
+                                               "• Your device stores saves in a non-standard location — " +
+                                               "use 'Add Custom Path' in the Emulators tab after setup.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TextSecondary
+                                    )
+                                }
+                            }
+                        } else {
+                            Text(
+                                text = "Found ${discoveredList.size} system${if (discoveredList.size != 1) "s" else ""}" +
+                                       if (saveTotal > 0) " with $saveTotal save files ready to sync!" else " — no saves yet (play a game first!).",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary
+                            )
+
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                // Show profiles with actual saves first
+                                withSaves.take(6).forEach { profile ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(profile.name, color = TextPrimary, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                                        Text("${profile.fileCount} saves", color = NeonCyan)
+                                    }
+                                }
+                                // Then profiles detected (installed) but no saves yet
+                                detected.take(4).forEach { profile ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(profile.name, color = TextMuted, modifier = Modifier.weight(1f))
+                                        Text("detected, no saves yet", color = TextMuted, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+                                val more = discoveredList.size - withSaves.take(6).size - detected.take(4).size
+                                if (more > 0) {
+                                    Text("+ $more more…", color = TextMuted, style = MaterialTheme.typography.bodySmall)
+                                }
                             }
                         }
-                        if (discoveredList.size > 6) {
-                            Text("+ ${discoveredList.size - 6} more emulators…", color = TextMuted)
+
+                        // Rescan button — always available after first scan
+                        OutlinedButton(
+                            onClick = { viewModel.scanEmulators() },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("🔄  Rescan Storage", color = NeonCyan)
                         }
                     }
 
+                    // Finish button — always available so user isn't stuck
                     Button(
-                        onClick = {
-                            viewModel.finishSetup(onSetupComplete)
-                        },
+                        onClick = { viewModel.finishSetup(onSetupComplete) },
+                        enabled = !isScanning,
                         modifier = Modifier.fillMaxWidth().height(52.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = NeonCyan)
                     ) {
