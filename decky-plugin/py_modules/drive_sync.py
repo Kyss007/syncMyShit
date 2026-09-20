@@ -167,17 +167,34 @@ class GoogleOAuthManager:
             logger.error(f"Failed to refresh Google Drive access token: {e}")
             return access_token
 
+def get_local_ip() -> str:
+    """Detects primary local network IP address of this device."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("10.255.255.255", 1))
+        ip = s.getsockname()[0]
+    except Exception:
+        ip = "127.0.0.1"
+    finally:
+        s.close()
+    return ip
+
+
+    def get_mobile_url(self) -> str:
+        """Returns the local LAN URL for the mobile companion login page."""
+        return getattr(self, "_mobile_url", "")
+
     def start_auth_flow(self, port: int = 8085) -> str:
         """Starts a local HTTP server and returns authorization URL."""
         self._current_verifier, challenge = self._generate_pkce()
         self._current_state = secrets.token_urlsafe(16)
 
-        # Find available port
+        # Find available port and bind 0.0.0.0 so phone on LAN can reach /mobile
         for try_port in [port, 8086, 8087, 8088, 0]:
             try:
                 self._stop_server()
                 handler = self._create_handler()
-                self._server = socketserver.TCPServer(("127.0.0.1", try_port), handler)
+                self._server = socketserver.TCPServer(("0.0.0.0", try_port), handler)
                 actual_port = self._server.server_address[1]
                 break
             except OSError:
@@ -185,6 +202,8 @@ class GoogleOAuthManager:
 
         redirect_uri = f"http://127.0.0.1:{actual_port}/"
         self._redirect_uri = redirect_uri
+        local_ip = get_local_ip()
+        self._mobile_url = f"http://{local_ip}:{actual_port}/mobile"
 
         params = {
             "client_id": self.client_id,
@@ -198,10 +217,11 @@ class GoogleOAuthManager:
             "prompt": "consent",
         }
         auth_url = f"{AUTH_ENDPOINT}?{urllib.parse.urlencode(params)}"
+        self._auth_url = auth_url
 
         self._server_thread = threading.Thread(target=self._server.serve_forever, daemon=True)
         self._server_thread.start()
-        logger.info(f"Started OAuth redirect listener on {redirect_uri}")
+        logger.info(f"Started OAuth redirect listener on {redirect_uri} (LAN: {self._mobile_url})")
 
         return auth_url
 
@@ -281,9 +301,116 @@ class GoogleOAuthManager:
                 parsed = urllib.parse.urlparse(self.path)
                 qs = urllib.parse.parse_qs(parsed.query)
 
-                code = qs.get("code", [None])[0]
-                state = qs.get("state", [None])[0]
+                # 1. Mobile Companion Page for Phone QR Code
+                if parsed.path in ("/mobile", "/phone", "/login"):
+                    auth_url = getattr(oauth_mgr, "_auth_url", "")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.end_headers()
+                    mobile_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>syncMyShit - Steam Deck Login</title>
+  <style>
+    * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
+    body {{ background: #0f172a; color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }}
+    .card {{ background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; max-width: 440px; width: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }}
+    h1 {{ font-size: 20px; font-weight: 700; margin-bottom: 8px; color: #38bdf8; }}
+    p {{ font-size: 14px; color: #94a3b8; line-height: 1.5; margin-bottom: 16px; }}
+    .btn {{ display: flex; align-items: center; justify-content: center; width: 100%; padding: 14px; border-radius: 8px; font-size: 15px; font-weight: 600; text-decoration: none; border: none; cursor: pointer; transition: background 0.2s; margin-bottom: 12px; }}
+    .btn-google {{ background: #ffffff; color: #1e293b; }}
+    .btn-google:active {{ background: #e2e8f0; }}
+    .btn-submit {{ background: #22c55e; color: #ffffff; }}
+    .btn-submit:active {{ background: #16a34a; }}
+    .step {{ background: rgba(255,255,255,0.04); border-left: 3px solid #38bdf8; padding: 12px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; color: #cbd5e1; line-height: 1.4; }}
+    input[type="text"] {{ width: 100%; padding: 12px; background: #0f172a; border: 1px solid #475569; border-radius: 6px; color: #f8fafc; font-size: 14px; margin-bottom: 12px; }}
+    input[type="text"]:focus {{ outline: none; border-color: #38bdf8; }}
+    .success-box {{ display: none; background: rgba(34, 197, 94, 0.15); border: 1px solid #22c55e; color: #4ade80; padding: 20px; border-radius: 12px; text-align: center; font-weight: 600; font-size: 16px; line-height: 1.5; }}
+  </style>
+</head>
+<body>
+  <div class="card" id="main-card">
+    <h1>🎮 syncMyShit</h1>
+    <p>Sign in with your Google account on this phone to link Google Drive to your Steam Deck.</p>
+    
+    <div class="step">
+      <strong>Step 1:</strong> Tap below to open Google authorization in a new tab:
+    </div>
+    <a href="{auth_url}" class="btn btn-google" target="_blank">
+      🔑 1. Open Google Sign-In
+    </a>
 
+    <div class="step" style="margin-top: 16px;">
+      <strong>Step 2:</strong> After signing in, your browser redirects to a page starting with <code>http://127.0.0.1...</code>. Copy that address bar URL and paste it below:
+    </div>
+    <input type="text" id="code-input" placeholder="Paste full address or code here..." />
+    <button class="btn btn-submit" onclick="submitCode()">
+      ⚡ 2. Connect Steam Deck
+    </button>
+  </div>
+
+  <div class="card success-box" id="success-box">
+    ✔ Successfully Connected!
+    <div style="font-size: 13px; color: #cbd5e1; font-weight: 400; margin-top: 8px;">
+      Your Steam Deck is now connected to Google Drive.<br>You can close this tab and pick up your Steam Deck!
+    </div>
+  </div>
+
+  <script>
+    async function submitCode() {{
+      const val = document.getElementById('code-input').value.trim();
+      if (!val) {{ alert('Please paste the URL or code first.'); return; }}
+      try {{
+        const res = await fetch('/submit?code=' + encodeURIComponent(val));
+        const data = await res.json();
+        if (data.success) {{
+          document.getElementById('main-card').style.display = 'none';
+          document.getElementById('success-box').style.display = 'block';
+        }} else {{
+          alert('Error: ' + (data.error || 'Failed to exchange token.'));
+        }}
+      }} catch (err) {{
+        alert('Network error connecting to Steam Deck: ' + err);
+      }}
+    }}
+  </script>
+</body>
+</html>"""
+                    self.wfile.write(mobile_html.encode("utf-8"))
+                    return
+
+                # 2. Remote / AJAX Submit Endpoint from Mobile
+                if parsed.path == "/submit":
+                    raw_code = qs.get("code", [""])[0].strip()
+                    if not raw_code:
+                        self.send_response(400)
+                        self.send_header("Content-Type", "application/json; charset=utf-8")
+                        self.end_headers()
+                        self.wfile.write(json.dumps({"success": False, "error": "Missing code"}).encode("utf-8"))
+                        return
+                    # Extract code if full URL was pasted
+                    if "code=" in raw_code:
+                        p_sub = urllib.parse.urlparse(raw_code)
+                        q_sub = urllib.parse.parse_qs(p_sub.query)
+                        raw_code = q_sub.get("code", [raw_code])[0]
+                    try:
+                        tokens = oauth_mgr.exchange_code(raw_code)
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json; charset=utf-8")
+                        self.end_headers()
+                        self.wfile.write(json.dumps({"success": True, "email": tokens.get("email", "")}).encode("utf-8"))
+                        threading.Thread(target=oauth_mgr._stop_server, daemon=True).start()
+                    except Exception as e:
+                        self.send_response(500)
+                        self.send_header("Content-Type", "application/json; charset=utf-8")
+                        self.end_headers()
+                        self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode("utf-8"))
+                    return
+
+                # 3. Direct Google OAuth Callback
+                code = qs.get("code", [None])[0]
                 if not code:
                     self.send_response(400)
                     self.send_header("Content-Type", "text/html; charset=utf-8")

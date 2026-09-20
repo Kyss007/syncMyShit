@@ -58,6 +58,9 @@ class Plugin:
         self._monitor: Optional[ProcessMonitor] = None
         self._monitor_thread: Optional[threading.Thread] = None
         self.loop: Optional[asyncio.AbstractEventLoop] = None
+        self._auth_in_progress: bool = False
+        self._current_auth_url: str = ""
+        self._current_mobile_url: str = ""
 
     def _start_monitor(self):
         if self._monitor and self._monitor._running:
@@ -205,9 +208,16 @@ class Plugin:
         custom_paths = self.config.get("custom_paths", [])
         is_monitoring = self._monitor is not None and self._monitor._running
 
+        # If authenticated, clear auth in progress
+        if is_auth:
+            self._auth_in_progress = False
+
         return {
             "success": True,
             "is_authenticated": is_auth,
+            "is_authenticating": self._auth_in_progress,
+            "auth_url": self._current_auth_url if self._auth_in_progress else "",
+            "mobile_url": self._current_mobile_url if self._auth_in_progress else "",
             "email": email,
             "drive_folder": "syncMyShit",
             "auto_sync": self.config.get("auto_sync_on_process", True),
@@ -298,9 +308,22 @@ class Plugin:
         }
 
     async def start_google_login(self) -> Dict[str, Any]:
-        """Starts local OAuth loopback listener and returns authorization URL."""
+        """Starts local OAuth loopback listener and returns authorization URL and mobile URL."""
         try:
+            # If already running, return existing URLs without restarting
+            if self._auth_in_progress and self._current_auth_url:
+                return {
+                    "success": True,
+                    "auth_url": self._current_auth_url,
+                    "mobile_url": self._current_mobile_url,
+                }
+
             auth_url = self.oauth_mgr.start_auth_flow()
+            mobile_url = self.oauth_mgr.get_mobile_url()
+            self._auth_in_progress = True
+            self._current_auth_url = auth_url
+            self._current_mobile_url = mobile_url
+
             import subprocess
             import webbrowser
 
@@ -322,10 +345,20 @@ class Plugin:
             except Exception:
                 pass
 
-            return {"success": True, "auth_url": auth_url}
+            return {"success": True, "auth_url": auth_url, "mobile_url": mobile_url}
         except Exception as e:
             logger.error(f"[syncMyShit] Failed to start Google login: {e}", exc_info=True)
+            self._auth_in_progress = False
             return {"success": False, "error": str(e)}
+
+    async def cancel_google_login(self) -> Dict[str, Any]:
+        """Cancels an in-progress authentication attempt and resets state."""
+        self._auth_in_progress = False
+        self._current_auth_url = ""
+        self._current_mobile_url = ""
+        self.oauth_mgr._stop_server()
+        logger.info("[syncMyShit] Cancelled Google Drive login")
+        return {"success": True}
 
     async def submit_auth_code(self, code_or_url: str) -> Dict[str, Any]:
         """Exchanges an authorization code or callback URL for Google Drive tokens."""
@@ -337,6 +370,9 @@ class Plugin:
                 qs = urllib.parse.parse_qs(parsed.query)
                 code = qs.get("code", [code])[0]
             tokens = self.oauth_mgr.exchange_code(code)
+            self._auth_in_progress = False
+            self._current_auth_url = ""
+            self._current_mobile_url = ""
             return {"success": True, "email": tokens.get("email", "")}
         except Exception as e:
             logger.error(f"[syncMyShit] Failed to exchange code: {e}", exc_info=True)
@@ -345,6 +381,9 @@ class Plugin:
     async def sign_out_google(self) -> Dict[str, Any]:
         """Disconnects and removes stored Google Drive credentials."""
         self.oauth_mgr.sign_out()
+        self._auth_in_progress = False
+        self._current_auth_url = ""
+        self._current_mobile_url = ""
         logger.info("[syncMyShit] Disconnected Google Drive account")
         return {"success": True}
 
