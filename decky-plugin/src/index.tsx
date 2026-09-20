@@ -220,7 +220,31 @@ const Content: FC = () => {
     return () => clearInterval(interval);
   }, [loggingIn]);
 
-  // Generate QR Code SVG when in login mode (SVG avoids canvas dependency in Decky CEF)
+  // Build a QR code SVG purely from the module matrix — no canvas, no async, no renderer
+  const buildQrSvg = (url: string): string => {
+    try {
+      const qr = (QRCode as any).create(url, { errorCorrectionLevel: "M" });
+      const size: number = qr.modules.size;
+      const data: Uint8ClampedArray = qr.modules.data;
+      const cell = 5;
+      const margin = 10;
+      const dim = size * cell + margin * 2;
+      let rects = "";
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+          if (data[r * size + c]) {
+            rects += `<rect x="${margin + c * cell}" y="${margin + r * cell}" width="${cell}" height="${cell}"/>`;
+          }
+        }
+      }
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${dim} ${dim}" style="width:100%;height:100%;display:block;background:#fff"><g fill="#000">${rects}</g></svg>`;
+    } catch (err) {
+      console.error("[syncMyShit] QR matrix generation failed:", err);
+      return "";
+    }
+  };
+
+  // Set QR SVG whenever login state or URLs change
   useEffect(() => {
     if (!loggingIn) {
       setQrSvg("");
@@ -228,13 +252,7 @@ const Content: FC = () => {
     }
     const target = mobileUrl || authUrl;
     if (target) {
-      QRCode.toString(target, {
-        type: "svg",
-        margin: 2,
-        color: { dark: "#000000", light: "#ffffff" },
-      })
-        .then((svg: string) => setQrSvg(svg))
-        .catch((err: any) => console.error("[syncMyShit] QR Code generation error:", err));
+      setQrSvg(buildQrSvg(target));
     }
   }, [loggingIn, authUrl, mobileUrl]);
 
@@ -866,7 +884,7 @@ const Content: FC = () => {
       <PanelSection title="Plugin Info">
         <PanelSectionRow>
           <Field label="Version" description="syncMyShit Decky Plugin">
-            <span style={{ color: "#38bdf8", fontWeight: 700, fontSize: "12px" }}>v1.0.17</span>
+            <span style={{ color: "#38bdf8", fontWeight: 700, fontSize: "12px" }}>v1.0.19</span>
           </Field>
         </PanelSectionRow>
 

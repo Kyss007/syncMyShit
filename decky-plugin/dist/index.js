@@ -2120,7 +2120,7 @@ var require_browser = __commonJS({
 var import_ui = __toESM(require_ui(), 1);
 
 // decky-manifest:@decky/manifest
-var manifest_default = { "name": "syncMyShit", "author": "Kyss007", "flags": [], "version": "1.0.17", "api_version": 1, "description": "Automagic retro emulator cloud save sync for Steam Deck, Android, & PC", "publish": { "tags": ["cloud", "save", "sync", "emulation", "gaming"], "description": "Automagic retro emulator cloud save sync across Steam Deck, Android, and PC with zero save-loss protection.", "image": "https://raw.githubusercontent.com/Kyss007/syncMyShit/main/docs/banner.png" } };
+var manifest_default = { "name": "syncMyShit", "author": "Kyss007", "flags": [], "version": "1.0.19", "api_version": 1, "description": "Automagic retro emulator cloud save sync for Steam Deck, Android, & PC", "publish": { "tags": ["cloud", "save", "sync", "emulation", "gaming"], "description": "Automagic retro emulator cloud save sync across Steam Deck, Android, and PC with zero save-loss protection.", "image": "https://raw.githubusercontent.com/Kyss007/syncMyShit/main/docs/banner.png" } };
 
 // decky-plugin/node_modules/@decky/api/dist/index.js
 var manifest = manifest_default;
@@ -2435,6 +2435,28 @@ var Content = () => {
     }, 2e3);
     return () => clearInterval(interval);
   }, [loggingIn]);
+  const buildQrSvg = (url) => {
+    try {
+      const qr = import_qrcode.default.create(url, { errorCorrectionLevel: "M" });
+      const size = qr.modules.size;
+      const data = qr.modules.data;
+      const cell = 5;
+      const margin = 10;
+      const dim = size * cell + margin * 2;
+      let rects = "";
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+          if (data[r * size + c]) {
+            rects += `<rect x="${margin + c * cell}" y="${margin + r * cell}" width="${cell}" height="${cell}"/>`;
+          }
+        }
+      }
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${dim} ${dim}" style="width:100%;height:100%;display:block;background:#fff"><g fill="#000">${rects}</g></svg>`;
+    } catch (err) {
+      console.error("[syncMyShit] QR matrix generation failed:", err);
+      return "";
+    }
+  };
   (0, import_react3.useEffect)(() => {
     if (!loggingIn) {
       setQrSvg("");
@@ -2442,11 +2464,7 @@ var Content = () => {
     }
     const target = mobileUrl || authUrl;
     if (target) {
-      import_qrcode.default.toString(target, {
-        type: "svg",
-        margin: 2,
-        color: { dark: "#000000", light: "#ffffff" }
-      }).then((svg) => setQrSvg(svg)).catch((err) => console.error("[syncMyShit] QR Code generation error:", err));
+      setQrSvg(buildQrSvg(target));
     }
   }, [loggingIn, authUrl, mobileUrl]);
   const handleStartGoogleLogin = async () => {
@@ -2924,7 +2942,7 @@ var Content = () => {
       },
       /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaTrashAlt, { size: 11 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, "Clear Activity Log"))
     ))),
-    /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSection, { title: "Plugin Info" }, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.Field, { label: "Version", description: "syncMyShit Decky Plugin" }, /* @__PURE__ */ window.SP_REACT.createElement("span", { style: { color: "#38bdf8", fontWeight: 700, fontSize: "12px" } }, "v1.0.17"))), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
+    /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSection, { title: "Plugin Info" }, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.Field, { label: "Version", description: "syncMyShit Decky Plugin" }, /* @__PURE__ */ window.SP_REACT.createElement("span", { style: { color: "#38bdf8", fontWeight: 700, fontSize: "12px" } }, "v1.0.19"))), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
       "div",
       {
         style: {
