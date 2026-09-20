@@ -4,13 +4,11 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const manifestPath = path.resolve(__dirname, "plugin.json");
-const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+const manifest = JSON.parse(fs.readFileSync(path.resolve(__dirname, "plugin.json"), "utf-8"));
 
 const deckyPlugin = {
   name: "decky-globals",
   setup(build) {
-    // Inject plugin manifest
     build.onResolve({ filter: /^@decky\/manifest$/ }, (args) => ({
       path: args.path,
       namespace: "decky-manifest",
@@ -20,7 +18,6 @@ const deckyPlugin = {
       loader: "js",
     }));
 
-    // Route Decky runtime external globals
     const externals = {
       react: "window.SP_REACT",
       "react-dom": "window.SP_REACTDOM",
@@ -53,4 +50,4 @@ await esbuild.build({
   plugins: [deckyPlugin],
 });
 
-console.log("Built decky-plugin/dist/index.js successfully!");
+console.log("Built decky-plugin/dist/index.js");

@@ -2,12 +2,12 @@
   "name": "syncMyShit",
   "author": "Kyss007",
   "flags": [],
-  "version": "1.0.22",
+  "version": "2.0.0",
   "api_version": 1,
-  "description": "Automagic retro emulator cloud save sync for Steam Deck, Android, & PC",
+  "description": "Cloud save sync for Steam Deck — Google Drive, EmuDeck, phone QR login",
   "publish": {
     "tags": ["cloud", "save", "sync", "emulation", "gaming"],
-    "description": "Automagic retro emulator cloud save sync across Steam Deck, Android, and PC with zero save-loss protection.",
+    "description": "Automagic retro emulator cloud save sync across Steam Deck, Android, and PC.",
     "image": "https://raw.githubusercontent.com/Kyss007/syncMyShit/main/docs/banner.png"
   }
 }

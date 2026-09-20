@@ -1,487 +1,169 @@
-#!/usr/bin/env python3
 """
-syncMyShit - Decky Loader Plugin Backend
-Automagic retro emulator cloud save sync for Steam Deck.
+syncMyShit Decky Plugin v2 — thin RPC facade.
 Dedicated to the Public Domain (The Unlicense)
 """
 
-import asyncio
+from __future__ import annotations
+
 import logging
 import os
-import re
 import sys
-import threading
 import time
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
-# Setup sys.path so bundled py_modules are available
-PLUGIN_DIR = Path(__file__).parent.resolve()
-PY_MODULES = PLUGIN_DIR / "py_modules"
-if str(PY_MODULES) not in sys.path:
-    sys.path.insert(0, str(PY_MODULES))
-if str(PLUGIN_DIR) not in sys.path:
-    sys.path.insert(0, str(PLUGIN_DIR))
+# Ensure py_modules is importable when loaded by plugin_loader
+_PLUGIN_DIR = os.path.dirname(os.path.realpath(__file__))
+_PY = os.path.join(_PLUGIN_DIR, "py_modules")
+if _PY not in sys.path:
+    sys.path.insert(0, _PY)
 
-# Try importing decky
-try:
-    import decky
-except ImportError:
-    try:
-        import decky_plugin as decky
-    except ImportError:
-        decky = None
+from auth import AuthManager  # noqa: E402
+from drive import DriveClient  # noqa: E402
+from saves import scan_emulators  # noqa: E402
+from store import Store  # noqa: E402
+from sync import SyncService  # noqa: E402
+from watcher import ProcessWatcher  # noqa: E402
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("syncMyShit")
-if decky and hasattr(decky, "logger"):
-    logger = decky.logger
-
-from config import ConfigManager
-from drive_sync import GoogleOAuthManager, GoogleDriveSyncProvider
-from emulator_registry import detect_installed_emulators, build_emulator_database, is_steam_game_path
-from process_monitor import ProcessMonitor
-from sync_engine import SyncEngine
-
-
-def strip_rich_tags(text: str) -> str:
-    """Removes rich/BBCode formatting tags from strings for clean frontend display."""
-    return re.sub(r"\[/?[a-zA-Z0-9_=#]+\]", "", text)
 
 
 class Plugin:
-    def __init__(self):
-        self.config = ConfigManager()
-        self.engine = SyncEngine(keep_backups=self.config.get("keep_backups_count", 5))
-        self.oauth_mgr = GoogleOAuthManager(self.config)
-        self.provider = GoogleDriveSyncProvider(self.oauth_mgr, self.engine)
-        self.recent_logs: List[Dict[str, Any]] = []
-        self._monitor: Optional[ProcessMonitor] = None
-        self._monitor_thread: Optional[threading.Thread] = None
-        self.loop: Optional[asyncio.AbstractEventLoop] = None
-        self._auth_in_progress: bool = False
-        self._current_auth_url: str = ""
-        self._current_mobile_url: str = ""
+    async def _main(self) -> None:
+        self.store = Store()
+        self.auth = AuthManager(self.store)
+        self.drive = DriveClient(self.auth)
+        self.sync = SyncService(self.store, self.drive)
+        self.watcher: Optional[ProcessWatcher] = None
 
-    def _start_monitor(self):
-        if self._monitor and self._monitor._running:
+        if self.store.get("auto_sync_on_exit", True) and self.auth.is_authenticated():
+            self._start_watcher()
+        logger.info("syncMyShit v2 ready")
+
+    async def _unload(self) -> None:
+        self._stop_watcher()
+        self.auth.cancel()
+
+    def _start_watcher(self) -> None:
+        if self.watcher and self.watcher.is_running:
             return
 
-        db = build_emulator_database()
-        targets: Dict[str, List[str]] = {}
-        for emu in db:
-            targets[emu.id] = emu.process_names
+        def on_exit(emu_id: str) -> None:
+            if not self.auth.is_authenticated():
+                return
+            logger.info("Auto-sync after exit: %s", emu_id)
+            self.sync.sync_emulator(emu_id)
 
-        def on_exit(emu_id: str, pid: str):
-            logger.info(f"[syncMyShit] Emulator {emu_id} (pid {pid}) exited - starting post-game sync")
-            self._execute_sync(emulator_id=emu_id, trigger="auto")
+        self.watcher = ProcessWatcher(on_exit)
+        self.watcher.start()
 
-        def on_launch(emu_id: str, pid: str):
-            logger.info(f"[syncMyShit] Emulator {emu_id} (pid {pid}) launched - pre-game check")
+    def _stop_watcher(self) -> None:
+        if self.watcher:
+            self.watcher.stop()
+            self.watcher = None
 
-        self._monitor = ProcessMonitor(
-            emulator_targets=targets,
-            on_emulator_launched=on_launch,
-            on_emulator_exited=on_exit,
-            poll_interval=float(self.config.get("poll_interval_seconds", 3.0)),
-        )
+    # ── RPC ──────────────────────────────────────────────────────────
 
-        def run_loop():
-            if self._monitor:
-                self._monitor.run_forever()
-
-        self._monitor_thread = threading.Thread(target=run_loop, daemon=True)
-        self._monitor_thread.start()
-        logger.info("[syncMyShit] Process monitor thread started")
-
-    def _stop_monitor(self):
-        if self._monitor:
-            self._monitor.stop()
-            self._monitor = None
-        if self._monitor_thread and self._monitor_thread.is_alive():
-            self._monitor_thread = None
-        logger.info("[syncMyShit] Process monitor stopped")
-
-    def _execute_sync(self, emulator_id: Optional[str] = None, trigger: str = "manual") -> Dict[str, Any]:
-        if not self.oauth_mgr.is_authenticated():
-            logger.warning("[syncMyShit] Sync skipped: Not authenticated with Google Drive")
-            return {
-                "success": False,
-                "operations_count": 0,
-                "logs": ["Google Drive is not connected. Please tap 'Sign In to Google Drive'."],
-                "message": "Not connected to Google Drive. Please Sign In first.",
-                "timestamp": int(time.time()),
-            }
-
-        detected = detect_installed_emulators()
-        ops_count = 0
-        sync_logs: List[str] = []
-        now_str = time.strftime("%H:%M:%S")
-
-        for emu in detected:
-            if emulator_id and emu["id"] != emulator_id:
-                continue
-
-            paths = [Path(p) for p in emu["paths"]]
-            try:
-                logs = self.provider.sync_emulator(
-                    emu["id"],
-                    paths,
-                    emu["extensions"],
-                    drive_folder=emu.get("drive_folder")
-                )
-                for raw_log in logs:
-                    clean = strip_rich_tags(raw_log)
-                    sync_logs.append(f"{emu['name']}: {clean}")
-                    self.recent_logs.append({
-                        "time": now_str,
-                        "emulator": emu["name"],
-                        "message": clean,
-                        "type": "upload" if "Uploaded" in raw_log else "download"
-                    })
-                    ops_count += 1
-            except Exception as e:
-                logger.error(f"[syncMyShit] Error syncing {emu['name']}: {e}", exc_info=True)
-                sync_logs.append(f"Error ({emu['name']}): {e}")
-
-        # Also sync custom paths if doing full sync
-        if not emulator_id:
-            for cp in self.config.get("custom_paths", []):
-                p = Path(cp["path"])
-                if p.exists() and not is_steam_game_path(p):
-                    try:
-                        logs = self.provider.sync_emulator(
-                            cp["name"].lower().replace(" ", "_"),
-                            [p],
-                            [],
-                            drive_folder=cp["name"]
-                        )
-                        for raw_log in logs:
-                            clean = strip_rich_tags(raw_log)
-                            sync_logs.append(f"{cp['name']}: {clean}")
-                            self.recent_logs.append({
-                                "time": now_str,
-                                "emulator": cp["name"],
-                                "message": clean,
-                                "type": "upload" if "Uploaded" in raw_log else "download"
-                            })
-                            ops_count += 1
-                    except Exception as e:
-                        logger.error(f"[syncMyShit] Error syncing custom path {cp['name']}: {e}", exc_info=True)
-                        sync_logs.append(f"Error ({cp['name']}): {e}")
-
-        self.config.set("last_sync_timestamp", int(time.time()))
-
-        if len(self.recent_logs) > 100:
-            self.recent_logs = self.recent_logs[-100:]
-
-        summary = f"Google Drive sync complete ({ops_count} change{'s' if ops_count != 1 else ''})" if ops_count > 0 else "All saves are up to date on Google Drive"
-        return {
-            "success": True,
-            "operations_count": ops_count,
-            "logs": sync_logs,
-            "message": summary,
-            "timestamp": int(time.time()),
-        }
-
-    # Decky lifecycle hooks
-    async def _main(self):
-        self.loop = asyncio.get_event_loop()
-        logger.info("[syncMyShit] Initializing syncMyShit Decky plugin...")
-        is_auth = self.oauth_mgr.is_authenticated()
-        email = self.oauth_mgr.get_user_email()
-        logger.info(f"[syncMyShit] Google Drive status: {'Connected as ' + email if is_auth else 'Not Connected'}")
-
-        # Start process monitor if auto-sync is enabled
-        if self.config.get("auto_sync_on_process", True):
-            self._start_monitor()
-
-    async def _unload(self):
-        logger.info("[syncMyShit] Unloading syncMyShit Decky plugin...")
-        self._stop_monitor()
-
-    # Decky callable RPC endpoints
     async def get_status(self) -> Dict[str, Any]:
-        """Returns overall status of syncMyShit for the UI."""
-        is_auth = self.oauth_mgr.is_authenticated()
-        email = self.oauth_mgr.get_user_email()
-        detected = detect_installed_emulators()
-        custom_paths = self.config.get("custom_paths", [])
-        is_monitoring = self._monitor is not None and self._monitor._running
-
-        # If authenticated, clear auth in progress
-        if is_auth:
-            self._auth_in_progress = False
-            self._current_auth_url = ""
-
-        # Robustly detect auth in progress from either Plugin or GoogleOAuthManager
-        is_authenticating = (self._auth_in_progress or self.oauth_mgr.is_authenticating()) and not is_auth
-        auth_url = self._current_auth_url or self.oauth_mgr.get_auth_url()
-
-        return {
-            "success": True,
-            "is_authenticated": is_auth,
-            "is_authenticating": is_authenticating,
-            "auth_url": auth_url if is_authenticating else "",
-            "email": email,
-            "drive_folder": "syncMyShit",
-            "auto_sync": self.config.get("auto_sync_on_process", True),
-            "is_monitoring": is_monitoring,
-            "last_sync_timestamp": self.config.get("last_sync_timestamp", 0),
-            "detected_emulators_count": len(detected),
-            "custom_paths_count": len(custom_paths),
-            "keep_backups": self.config.get("keep_backups_count", 5),
-        }
-
-    async def scan_saves(self) -> Dict[str, Any]:
-        """Scans all detected emulators and returns list of save files."""
-        detected = detect_installed_emulators()
-        results: List[Dict[str, Any]] = []
-        total_files = 0
-
-        for emu in detected:
-            paths = [Path(p) for p in emu["paths"]]
-            emu_saves = []
-            for p in paths:
-                found = self.engine.scan_directory(p, emu["extensions"])
-                for f in found:
-                    emu_saves.append({
-                        "name": f["name"],
-                        "relative": f["relative"],
-                        "size": f["size"],
-                        "mtime": f["mtime"],
-                    })
-            total_files += len(emu_saves)
-            results.append({
-                "id": emu["id"],
-                "name": emu["name"],
-                "category": emu["category"],
-                "paths": emu["paths"],
-                "drive_folder": emu.get("drive_folder", emu["id"]),
-                "save_count": len(emu_saves),
-                "saves": emu_saves[:20],  # sample preview
-            })
-
-        for cp in self.config.get("custom_paths", []):
-            p = Path(cp["path"])
-            cp_saves = []
-            if p.exists() and not is_steam_game_path(p):
-                found = self.engine.scan_directory(p, [])
-                for f in found:
-                    cp_saves.append({
-                        "name": f["name"],
-                        "relative": f["relative"],
-                        "size": f["size"],
-                        "mtime": f["mtime"],
-                    })
-            total_files += len(cp_saves)
-            results.append({
-                "id": f"custom_{cp['name'].lower()}",
-                "name": cp["name"],
-                "category": "Custom Path",
-                "paths": [cp["path"]],
-                "drive_folder": cp["name"],
-                "save_count": len(cp_saves),
-                "saves": cp_saves[:20],
-            })
-
-        return {
-            "success": True,
-            "total_saves": total_files,
-            "emulators": results,
-        }
-
-    async def run_sync(self, emulator_id: Optional[str] = None) -> Dict[str, Any]:
-        """Triggers a cloud save sync."""
-        logger.info(f"[syncMyShit] Running save sync (target={emulator_id or 'all'})")
-        # Run blocking sync in executor to avoid blocking event loop
-        loop = asyncio.get_event_loop()
-        res = await loop.run_in_executor(None, self._execute_sync, emulator_id, "manual")
-        return res
-
-    async def toggle_watcher(self, enabled: bool) -> Dict[str, Any]:
-        """Enables or disables background process auto-sync watcher."""
-        self.config.set("auto_sync_on_process", enabled)
-        if enabled:
-            self._start_monitor()
-        else:
-            self._stop_monitor()
-        return {
-            "success": True,
-            "auto_sync": enabled,
-            "is_monitoring": self._monitor is not None and self._monitor._running,
-        }
-
-    def _open_system_browser(self, url: str) -> bool:
-        """Launches the system or Steam browser for the deck user."""
-        import os
-        import shutil
-        import subprocess
-
         try:
-            env = os.environ.copy()
-            env["USER"] = "deck"
-            env["HOME"] = "/home/deck"
-            env["XDG_RUNTIME_DIR"] = "/run/user/1000"
-            env["DBUS_SESSION_BUS_ADDRESS"] = "unix:path=/run/user/1000/bus"
-            if "DISPLAY" not in env:
-                env["DISPLAY"] = ":0"
-            if "WAYLAND_DISPLAY" not in env:
-                env["WAYLAND_DISPLAY"] = "wayland-0"
-
-            opened = False
-
-            # 1. Steam Protocol (works inside Steam Game Mode)
-            steam_bin = shutil.which("steam") or "/usr/bin/steam"
-            if steam_bin and os.path.exists(steam_bin):
-                try:
-                    logger.info(f"[syncMyShit] Launching via Steam protocol: steam://openurl/{url}")
-                    subprocess.Popen(
-                        ["sudo", "-u", "deck", "-E", steam_bin, f"steam://openurl/{url}"],
-                        env=env,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
-                    opened = True
-                except Exception as e:
-                    logger.warning(f"[syncMyShit] Steam protocol call failed: {e}")
-
-            # 2. xdg-open
-            xdg_bin = shutil.which("xdg-open")
-            if xdg_bin:
-                try:
-                    logger.info(f"[syncMyShit] Launching via xdg-open: {url}")
-                    subprocess.Popen(
-                        ["sudo", "-u", "deck", "-E", xdg_bin, url],
-                        env=env,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
-                    opened = True
-                except Exception as e:
-                    logger.warning(f"[syncMyShit] xdg-open call failed: {e}")
-
-            # 3. Flatpak browsers (Firefox, Chrome, Edge, etc.)
-            flatpak_bin = shutil.which("flatpak")
-            if flatpak_bin:
-                for app_id in ["org.mozilla.firefox", "com.google.Chrome", "com.microsoft.Edge", "com.brave.Browser"]:
-                    try:
-                        res = subprocess.run(
-                            ["sudo", "-u", "deck", "-E", flatpak_bin, "info", app_id],
-                            env=env,
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL,
-                        )
-                        if res.returncode == 0:
-                            logger.info(f"[syncMyShit] Launching flatpak browser: {app_id}")
-                            subprocess.Popen(
-                                ["sudo", "-u", "deck", "-E", flatpak_bin, "run", app_id, url],
-                                env=env,
-                                stdout=subprocess.DEVNULL,
-                                stderr=subprocess.DEVNULL,
-                            )
-                            opened = True
-                            break
-                    except Exception:
-                        pass
-
-            return opened
+            return {
+                "success": True,
+                "is_authenticated": self.auth.is_authenticated(),
+                "is_waiting": self.auth.is_waiting(),
+                "email": self.auth.get_email(),
+                "lan_url": self.auth.get_lan_url() if self.auth.is_waiting() else "",
+                "auth_url": self.auth.get_auth_url() if self.auth.is_waiting() else "",
+                "auto_sync": bool(self.store.get("auto_sync_on_exit", True)),
+                "is_monitoring": bool(self.watcher and self.watcher.is_running),
+                "last_sync_timestamp": int(self.store.get("last_sync_timestamp") or 0),
+                "version": "2.0.0",
+            }
         except Exception as e:
-            logger.warning(f"[syncMyShit] _open_system_browser encountered error: {e}")
-            return False
+            logger.error("get_status: %s", e)
+            return {"success": False, "error": str(e), "is_authenticated": False, "email": ""}
 
-    async def open_browser(self, url: str = "") -> Dict[str, Any]:
-        """RPC endpoint to open browser on the Steam Deck."""
-        target_url = url or self._current_auth_url
-        if not target_url:
-            return {"success": False, "error": "No URL provided"}
-        success = self._open_system_browser(target_url)
-        return {"success": success}
-
-    async def start_google_login(self) -> Dict[str, Any]:
-        """Starts local OAuth loopback listener and launches browser on the Steam Deck."""
+    async def start_login(self) -> Dict[str, Any]:
         try:
-            # If already running, return existing URLs and re-trigger browser
-            if (self._auth_in_progress or self.oauth_mgr.is_authenticating()) and (self._current_auth_url or self.oauth_mgr.get_auth_url()):
-                auth_url = self._current_auth_url or self.oauth_mgr.get_auth_url()
-                self._auth_in_progress = True
-                self._current_auth_url = auth_url
-                threading.Thread(target=self._open_system_browser, args=(auth_url,), daemon=True).start()
-                return {
-                    "success": True,
-                    "auth_url": auth_url,
-                }
-
-            auth_url = self.oauth_mgr.start_auth_flow()
-            self._auth_in_progress = True
-            self._current_auth_url = auth_url
-
-            # Automatically launch browser on the device in a background thread
-            threading.Thread(target=self._open_system_browser, args=(auth_url,), daemon=True).start()
-
-            return {"success": True, "auth_url": auth_url}
+            urls = self.auth.start_login()
+            return {
+                "success": True,
+                "lan_url": urls["lan_url"],
+                "auth_url": urls["auth_url"],
+            }
         except Exception as e:
-            logger.error(f"[syncMyShit] Failed to start Google login: {e}", exc_info=True)
+            logger.error("start_login: %s", e, exc_info=True)
             return {"success": False, "error": str(e)}
 
-    async def cancel_google_login(self) -> Dict[str, Any]:
-        """Cancels an in-progress authentication attempt and resets state."""
-        self._auth_in_progress = False
-        self._current_auth_url = ""
-        self._current_mobile_url = ""
-        self.oauth_mgr._stop_server()
-        logger.info("[syncMyShit] Cancelled Google Drive login")
+    async def cancel_login(self) -> Dict[str, Any]:
+        self.auth.cancel()
         return {"success": True}
 
-    async def submit_auth_code(self, code_or_url: str) -> Dict[str, Any]:
-        """Exchanges an authorization code or callback URL for Google Drive tokens."""
+    async def submit_code(self, code_or_url: str = "") -> Dict[str, Any]:
         try:
-            import urllib.parse
-            code = code_or_url.strip()
-            if "code=" in code:
-                parsed = urllib.parse.urlparse(code)
-                qs = urllib.parse.parse_qs(parsed.query)
-                code = qs.get("code", [code])[0]
-            tokens = self.oauth_mgr.exchange_code(code)
-            self._auth_in_progress = False
-            self._current_auth_url = ""
-            self._current_mobile_url = ""
+            tokens = self.auth.exchange_code(code_or_url)
+            if self.store.get("auto_sync_on_exit", True):
+                self._start_watcher()
             return {"success": True, "email": tokens.get("email", "")}
         except Exception as e:
-            logger.error(f"[syncMyShit] Failed to exchange code: {e}", exc_info=True)
+            logger.error("submit_code: %s", e, exc_info=True)
             return {"success": False, "error": str(e)}
 
-    async def sign_out_google(self) -> Dict[str, Any]:
-        """Disconnects and removes stored Google Drive credentials."""
-        self.oauth_mgr.sign_out()
-        self._auth_in_progress = False
-        self._current_auth_url = ""
-        self._current_mobile_url = ""
-        logger.info("[syncMyShit] Disconnected Google Drive account")
+    async def sign_out(self) -> Dict[str, Any]:
+        self._stop_watcher()
+        self.auth.sign_out()
         return {"success": True}
 
-    async def get_recent_logs(self) -> Dict[str, Any]:
-        """Returns recent sync log entries."""
+    async def scan(self) -> Dict[str, Any]:
+        try:
+            items = scan_emulators()
+            return {
+                "success": True,
+                "emulators": [
+                    {
+                        "id": i.id,
+                        "name": i.name,
+                        "category": i.category,
+                        "save_path": i.save_path,
+                        "exists": i.exists,
+                        "save_count": i.save_count,
+                        "drive_folder": i.drive_folder,
+                    }
+                    for i in items
+                ],
+                "total_saves": sum(i.save_count for i in items),
+            }
+        except Exception as e:
+            logger.error("scan: %s", e, exc_info=True)
+            return {"success": False, "emulators": [], "total_saves": 0, "error": str(e)}
+
+    async def run_sync(self, emulator_id: str = "") -> Dict[str, Any]:
+        if not self.auth.is_authenticated():
+            return {"success": False, "error": "Not signed in", "uploaded": 0, "downloaded": 0}
+        try:
+            if emulator_id:
+                return self.sync.sync_emulator(emulator_id)
+            return self.sync.sync_all()
+        except Exception as e:
+            logger.error("run_sync: %s", e, exc_info=True)
+            return {"success": False, "error": str(e), "uploaded": 0, "downloaded": 0}
+
+    async def toggle_auto_sync(self, enabled: bool = True) -> Dict[str, Any]:
+        self.store.set("auto_sync_on_exit", bool(enabled))
+        if enabled and self.auth.is_authenticated():
+            self._start_watcher()
+        else:
+            self._stop_watcher()
         return {
             "success": True,
-            "logs": list(reversed(self.recent_logs[-30:])),
+            "auto_sync": bool(enabled),
+            "is_monitoring": bool(self.watcher and self.watcher.is_running),
         }
 
-    async def clear_logs(self) -> Dict[str, Any]:
-        """Clears stored sync logs."""
-        self.recent_logs.clear()
+    async def get_activity(self) -> Dict[str, Any]:
+        logs = self.store.load_activity()
+        logs = list(reversed(logs[-20:]))
+        return {"success": True, "logs": logs}
+
+    async def clear_activity(self) -> Dict[str, Any]:
+        self.store.save_activity([])
         return {"success": True}
-
-    async def add_custom_path(self, name: str, path: str) -> Dict[str, Any]:
-        """Adds a custom emulator save directory."""
-        if not name or not path:
-            return {"success": False, "error": "Name and path are required"}
-        p = Path(path).resolve()
-        if is_steam_game_path(p):
-            return {"success": False, "error": "Cannot add Steam game saves; Steam Cloud already syncs them."}
-        self.config.add_custom_path(name, str(p))
-        return {"success": True, "custom_paths": self.config.get("custom_paths", [])}
-
-    async def remove_custom_path(self, path: str) -> Dict[str, Any]:
-        """Removes a custom emulator save directory."""
-        self.config.remove_custom_path(path)
-        return {"success": True, "custom_paths": self.config.get("custom_paths", [])}

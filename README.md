@@ -27,7 +27,7 @@
 
 ---
 
-### 🎮 Steam Deck (Decky Loader Plugin)
+### 🎮 Steam Deck (Decky Loader Plugin v2)
 In Steam Deck Desktop Mode, open **Konsole** and run:
 
 - **Install**:
@@ -38,13 +38,12 @@ In Steam Deck Desktop Mode, open **Konsole** and run:
   ```bash
   curl -sSL https://raw.githubusercontent.com/Kyss007/syncMyShit/main/update-decky.sh | bash
   ```
-  *(Or tap "⚡ Update Plugin" directly inside the Decky Quick Access Menu!)*
 - **Uninstall**:
   ```bash
   curl -sSL https://raw.githubusercontent.com/Kyss007/syncMyShit/main/uninstall-decky.sh | bash
   ```
 
-Then press the `...` button in Gaming Mode to sync saves anytime!
+**Login (Game Mode):** Decky → syncMyShit → **Link Google Drive** → scan the QR with your phone (same Wi‑Fi) → sign in → paste the `http://127.0.0.1…` URL back into the phone page. Deck connects automatically.
 
 </div>
 
