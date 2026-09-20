@@ -8,45 +8,68 @@ from __future__ import annotations
 import logging
 import os
 import sys
-import time
 from typing import Any, Dict, Optional
 
-# Ensure py_modules is importable when loaded by plugin_loader
 _PLUGIN_DIR = os.path.dirname(os.path.realpath(__file__))
 _PY = os.path.join(_PLUGIN_DIR, "py_modules")
 if _PY not in sys.path:
     sys.path.insert(0, _PY)
 
-from auth import AuthManager  # noqa: E402
-from drive import DriveClient  # noqa: E402
-from saves import scan_emulators  # noqa: E402
-from store import Store  # noqa: E402
-from sync import SyncService  # noqa: E402
-from watcher import ProcessWatcher  # noqa: E402
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("syncMyShit")
 
+PLUGIN_VERSION = "2.0.1"
+
 
 class Plugin:
-    async def _main(self) -> None:
+    """Lazily initialized so RPC never crashes if _main races the UI."""
+
+    def __init__(self) -> None:
+        self._ready = False
+        self.store = None  # type: ignore
+        self.auth = None  # type: ignore
+        self.drive = None  # type: ignore
+        self.sync = None  # type: ignore
+        self.watcher = None  # type: ignore
+
+    def _ensure(self) -> None:
+        if self._ready:
+            return
+        from auth import AuthManager
+        from drive import DriveClient
+        from store import Store
+        from sync import SyncService
+
         self.store = Store()
         self.auth = AuthManager(self.store)
         self.drive = DriveClient(self.auth)
         self.sync = SyncService(self.store, self.drive)
-        self.watcher: Optional[ProcessWatcher] = None
+        self.watcher = None
+        self._ready = True
+        logger.info("syncMyShit %s backend ready", PLUGIN_VERSION)
 
-        if self.store.get("auto_sync_on_exit", True) and self.auth.is_authenticated():
-            self._start_watcher()
-        logger.info("syncMyShit v2 ready")
+    async def _main(self) -> None:
+        try:
+            self._ensure()
+            if self.store.get("auto_sync_on_exit", True) and self.auth.is_authenticated():
+                self._start_watcher()
+            logger.info("syncMyShit %s plugin loaded", PLUGIN_VERSION)
+        except Exception as e:
+            logger.error("Plugin _main failed: %s", e, exc_info=True)
 
     async def _unload(self) -> None:
-        self._stop_watcher()
-        self.auth.cancel()
+        try:
+            self._stop_watcher()
+            if self.auth:
+                self.auth.cancel()
+        except Exception:
+            pass
 
     def _start_watcher(self) -> None:
+        self._ensure()
         if self.watcher and self.watcher.is_running:
             return
+        from watcher import ProcessWatcher
 
         def on_exit(emu_id: str) -> None:
             if not self.auth.is_authenticated():
@@ -59,13 +82,15 @@ class Plugin:
 
     def _stop_watcher(self) -> None:
         if self.watcher:
-            self.watcher.stop()
+            try:
+                self.watcher.stop()
+            except Exception:
+                pass
             self.watcher = None
-
-    # ── RPC ──────────────────────────────────────────────────────────
 
     async def get_status(self) -> Dict[str, Any]:
         try:
+            self._ensure()
             return {
                 "success": True,
                 "is_authenticated": self.auth.is_authenticated(),
@@ -76,15 +101,23 @@ class Plugin:
                 "auto_sync": bool(self.store.get("auto_sync_on_exit", True)),
                 "is_monitoring": bool(self.watcher and self.watcher.is_running),
                 "last_sync_timestamp": int(self.store.get("last_sync_timestamp") or 0),
-                "version": "2.0.0",
+                "version": PLUGIN_VERSION,
             }
         except Exception as e:
-            logger.error("get_status: %s", e)
-            return {"success": False, "error": str(e), "is_authenticated": False, "email": ""}
+            logger.error("get_status: %s", e, exc_info=True)
+            return {
+                "success": False,
+                "error": str(e),
+                "is_authenticated": False,
+                "email": "",
+                "version": PLUGIN_VERSION,
+            }
 
     async def start_login(self) -> Dict[str, Any]:
         try:
+            self._ensure()
             urls = self.auth.start_login()
+            logger.info("start_login ok lan=%s", urls.get("lan_url"))
             return {
                 "success": True,
                 "lan_url": urls["lan_url"],
@@ -95,11 +128,19 @@ class Plugin:
             return {"success": False, "error": str(e)}
 
     async def cancel_login(self) -> Dict[str, Any]:
-        self.auth.cancel()
+        try:
+            self._ensure()
+            self.auth.cancel()
+        except Exception:
+            pass
         return {"success": True}
 
     async def submit_code(self, code_or_url: str = "") -> Dict[str, Any]:
         try:
+            self._ensure()
+            if not self.auth.is_waiting() and not getattr(self.auth, "_verifier", ""):
+                # Need an active PKCE session matching the Google auth URL
+                self.auth.start_login()
             tokens = self.auth.exchange_code(code_or_url)
             if self.store.get("auto_sync_on_exit", True):
                 self._start_watcher()
@@ -109,12 +150,19 @@ class Plugin:
             return {"success": False, "error": str(e)}
 
     async def sign_out(self) -> Dict[str, Any]:
-        self._stop_watcher()
-        self.auth.sign_out()
+        try:
+            self._ensure()
+            self._stop_watcher()
+            self.auth.sign_out()
+        except Exception as e:
+            return {"success": False, "error": str(e)}
         return {"success": True}
 
     async def scan(self) -> Dict[str, Any]:
         try:
+            self._ensure()
+            from saves import scan_emulators
+
             items = scan_emulators()
             return {
                 "success": True,
@@ -137,9 +185,10 @@ class Plugin:
             return {"success": False, "emulators": [], "total_saves": 0, "error": str(e)}
 
     async def run_sync(self, emulator_id: str = "") -> Dict[str, Any]:
-        if not self.auth.is_authenticated():
-            return {"success": False, "error": "Not signed in", "uploaded": 0, "downloaded": 0}
         try:
+            self._ensure()
+            if not self.auth.is_authenticated():
+                return {"success": False, "error": "Not signed in", "uploaded": 0, "downloaded": 0}
             if emulator_id:
                 return self.sync.sync_emulator(emulator_id)
             return self.sync.sync_all()
@@ -148,22 +197,34 @@ class Plugin:
             return {"success": False, "error": str(e), "uploaded": 0, "downloaded": 0}
 
     async def toggle_auto_sync(self, enabled: bool = True) -> Dict[str, Any]:
-        self.store.set("auto_sync_on_exit", bool(enabled))
-        if enabled and self.auth.is_authenticated():
-            self._start_watcher()
-        else:
-            self._stop_watcher()
-        return {
-            "success": True,
-            "auto_sync": bool(enabled),
-            "is_monitoring": bool(self.watcher and self.watcher.is_running),
-        }
+        try:
+            self._ensure()
+            self.store.set("auto_sync_on_exit", bool(enabled))
+            if enabled and self.auth.is_authenticated():
+                self._start_watcher()
+            else:
+                self._stop_watcher()
+            return {
+                "success": True,
+                "auto_sync": bool(enabled),
+                "is_monitoring": bool(self.watcher and self.watcher.is_running),
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e), "auto_sync": False, "is_monitoring": False}
 
     async def get_activity(self) -> Dict[str, Any]:
-        logs = self.store.load_activity()
-        logs = list(reversed(logs[-20:]))
-        return {"success": True, "logs": logs}
+        try:
+            self._ensure()
+            logs = self.store.load_activity()
+            logs = list(reversed(logs[-20:]))
+            return {"success": True, "logs": logs}
+        except Exception as e:
+            return {"success": False, "logs": [], "error": str(e)}
 
     async def clear_activity(self) -> Dict[str, Any]:
-        self.store.save_activity([])
-        return {"success": True}
+        try:
+            self._ensure()
+            self.store.save_activity([])
+            return {"success": True}
+        except Exception as e:
+            return {"success": False, "error": str(e)}

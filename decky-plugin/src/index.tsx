@@ -8,9 +8,11 @@ import {
   staticClasses,
 } from "@decky/ui";
 import { callable, definePlugin, toaster } from "@decky/api";
-import { FC, useCallback, useEffect, useState } from "react";
+import { FC, useCallback, useEffect, useRef, useState } from "react";
+import QRCode from "qrcode";
 import {
   FaCheckCircle,
+  FaCopy,
   FaExclamationCircle,
   FaGamepad,
   FaGoogle,
@@ -18,10 +20,8 @@ import {
   FaSyncAlt,
   FaTimes,
   FaTrashAlt,
-  FaKey,
 } from "react-icons/fa";
 
-/* ── theme tokens (arcade handheld) ─────────────────────────── */
 const C = {
   cyan: "#2ee6ff",
   lime: "#3dff9a",
@@ -99,8 +99,31 @@ const apiGetActivity = callable<
 >("get_activity");
 const apiClearActivity = callable<[], { success: boolean }>("clear_activity");
 
-function qrImageUrl(data: string): string {
-  return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=8&data=${encodeURIComponent(data)}`;
+async function makeQrSvg(data: string): Promise<string> {
+  return QRCode.toString(data, {
+    type: "svg",
+    errorCorrectionLevel: "M",
+    margin: 2,
+    width: 200,
+    color: { dark: "#061018", light: "#ffffff" },
+  });
+}
+
+async function copyText(text: string): Promise<boolean> {
+  const win = window as any;
+  try {
+    if (typeof win.SteamClient?.System?.SetClipboardText === "function") {
+      win.SteamClient.System.SetClipboardText(text);
+      return true;
+    }
+  } catch (_) {}
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (_) {}
+  return false;
 }
 
 const Content: FC = () => {
@@ -108,6 +131,8 @@ const Content: FC = () => {
   const [authed, setAuthed] = useState(false);
   const [waiting, setWaiting] = useState(false);
   const [lanUrl, setLanUrl] = useState("");
+  const [qrSvg, setQrSvg] = useState("");
+  const [loginError, setLoginError] = useState("");
   const [autoSync, setAutoSync] = useState(true);
   const [monitoring, setMonitoring] = useState(false);
   const [emulators, setEmulators] = useState<
@@ -126,37 +151,112 @@ const Content: FC = () => {
   const [syncing, setSyncing] = useState(false);
   const [syncTarget, setSyncTarget] = useState<string | null>(null);
   const [manualCode, setManualCode] = useState("");
-  const [showPaste, setShowPaste] = useState(false);
   const [busyLogin, setBusyLogin] = useState(false);
+  const [backendOk, setBackendOk] = useState(true);
+  const [version, setVersion] = useState("?");
+  const autoStarted = useRef(false);
+
+  const setLanAndQr = useCallback(async (url: string) => {
+    setLanUrl(url);
+    if (!url) {
+      setQrSvg("");
+      return;
+    }
+    try {
+      const svg = await makeQrSvg(url);
+      setQrSvg(svg);
+    } catch (e) {
+      console.warn("[syncMyShit] QR SVG failed", e);
+      setQrSvg("");
+    }
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
       const st = await apiGetStatus();
-      if (!st?.success && st?.error) return;
+      if (!st || (st.success === false && st.error)) {
+        setBackendOk(false);
+        setLoginError(st?.error || "Backend not responding");
+        return;
+      }
+      setBackendOk(true);
+      setVersion(st.version || "2.0.1");
       setAuthed(!!st.is_authenticated);
       setEmail(st.email || "");
-      setWaiting(!!st.is_waiting && !st.is_authenticated);
-      setLanUrl(st.lan_url || "");
+      const wait = !!st.is_waiting && !st.is_authenticated;
+      setWaiting(wait);
+      if (st.lan_url) await setLanAndQr(st.lan_url);
+      else if (!wait) await setLanAndQr("");
       setAutoSync(!!st.auto_sync);
       setMonitoring(!!st.is_monitoring);
 
-      const scan = await apiScan();
-      if (scan.success) {
-        setEmulators(scan.emulators || []);
-        setTotalSaves(scan.total_saves || 0);
-      }
-      const act = await apiGetActivity();
-      if (act.success) setLogs(act.logs || []);
-    } catch (e) {
+      try {
+        const scan = await apiScan();
+        if (scan.success) {
+          setEmulators(scan.emulators || []);
+          setTotalSaves(scan.total_saves || 0);
+        }
+      } catch (_) {}
+      try {
+        const act = await apiGetActivity();
+        if (act.success) setLogs(act.logs || []);
+      } catch (_) {}
+    } catch (e: any) {
+      setBackendOk(false);
+      setLoginError(String(e?.message || e));
       console.warn("[syncMyShit] refresh", e);
     }
-  }, []);
+  }, [setLanAndQr]);
+
+  const startLogin = useCallback(async (silent = false) => {
+    setBusyLogin(true);
+    setLoginError("");
+    try {
+      const res = await apiStartLogin();
+      if (res.success && res.lan_url) {
+        setWaiting(true);
+        await setLanAndQr(res.lan_url);
+        if (!silent) {
+          toaster.toast({
+            title: "Scan this QR",
+            body: "Same Wi‑Fi. Phone signs in, then paste the localhost URL.",
+            duration: 6000,
+          });
+        }
+      } else {
+        const err = res.error || "Could not start login server";
+        setLoginError(err);
+        setWaiting(false);
+        if (!silent) {
+          toaster.toast({ title: "Login failed", body: err, duration: 6000 });
+        }
+      }
+    } catch (e: any) {
+      const err = String(e?.message || e);
+      setLoginError(err);
+      setBackendOk(false);
+      if (!silent) {
+        toaster.toast({ title: "Login failed", body: err, duration: 6000 });
+      }
+    } finally {
+      setBusyLogin(false);
+    }
+  }, [setLanAndQr]);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    (async () => {
+      await refresh();
+      if (autoStarted.current) return;
+      autoStarted.current = true;
+      try {
+        const st = await apiGetStatus();
+        if (st && !st.is_authenticated) {
+          await startLogin(true);
+        }
+      } catch (_) {}
+    })();
+  }, [refresh, startLogin]);
 
-  // Poll while waiting for phone OAuth
   useEffect(() => {
     if (!waiting) return;
     const t = setInterval(async () => {
@@ -164,7 +264,7 @@ const Content: FC = () => {
         const st = await apiGetStatus();
         if (st.is_authenticated) {
           setWaiting(false);
-          setLanUrl("");
+          await setLanAndQr("");
           setAuthed(true);
           setEmail(st.email || "");
           toaster.toast({
@@ -174,42 +274,16 @@ const Content: FC = () => {
           });
           await refresh();
         } else if (st.lan_url) {
-          setLanUrl(st.lan_url);
+          await setLanAndQr(st.lan_url);
         }
       } catch (_) {}
     }, 2000);
     return () => clearInterval(t);
-  }, [waiting, refresh]);
-
-  const startLogin = async () => {
-    setBusyLogin(true);
-    try {
-      const res = await apiStartLogin();
-      if (res.success && res.lan_url) {
-        setWaiting(true);
-        setLanUrl(res.lan_url);
-        toaster.toast({
-          title: "Scan with your phone",
-          body: "Same Wi‑Fi. Open Google, then paste the localhost URL back.",
-          duration: 6000,
-        });
-      } else {
-        toaster.toast({
-          title: "Login failed",
-          body: res.error || "Could not start login",
-          duration: 5000,
-        });
-      }
-    } catch (e: any) {
-      toaster.toast({ title: "Login failed", body: String(e?.message || e), duration: 5000 });
-    } finally {
-      setBusyLogin(false);
-    }
-  };
+  }, [waiting, refresh, setLanAndQr]);
 
   const cancelLogin = async () => {
     setWaiting(false);
-    setLanUrl("");
+    await setLanAndQr("");
     try {
       await apiCancelLogin();
     } catch (_) {}
@@ -221,8 +295,8 @@ const Content: FC = () => {
       const res = await apiSubmitCode(manualCode.trim());
       if (res.success) {
         setManualCode("");
-        setShowPaste(false);
         setWaiting(false);
+        await setLanAndQr("");
         toaster.toast({ title: "Drive linked", body: res.email || "Connected", duration: 4000 });
         await refresh();
       } else {
@@ -278,14 +352,18 @@ const Content: FC = () => {
       setAuthed(false);
       setEmail("");
       setWaiting(false);
+      await setLanAndQr("");
+      autoStarted.current = false;
       toaster.toast({ title: "Signed out", body: "Google Drive disconnected", duration: 3000 });
       await refresh();
+      await startLogin(true);
     } catch (_) {}
   };
 
+  const showLoginPanel = !authed;
+
   return (
     <div style={{ paddingBottom: 12 }}>
-      {/* Brand strip */}
       <div
         style={{
           margin: "0 0 10px",
@@ -343,101 +421,121 @@ const Content: FC = () => {
             <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.4 }}>
               {authed
                 ? "Saves land in Drive folder syncMyShit — same as Android."
-                : waiting
-                  ? "Scan the QR. Sign in on your phone. Paste the localhost URL back."
-                  : "Scan the QR. Bribe Google. Sync your shit."}
+                : "1) Scan QR  2) Google on phone  3) Paste the 127.0.0.1 URL back on phone"}
             </div>
+            {!backendOk && (
+              <div style={{ marginTop: 8, fontSize: 11, color: C.coral }}>
+                Backend error: {loginError || "unknown"}
+              </div>
+            )}
+            {loginError && backendOk && (
+              <div style={{ marginTop: 8, fontSize: 11, color: C.coral }}>{loginError}</div>
+            )}
           </div>
         </PanelSectionRow>
 
-        {!authed && !waiting && (
-          <PanelSectionRow>
-            <ButtonItem layout="below" onClick={startLogin} disabled={busyLogin}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                <FaGoogle size={13} />
-                <span>Link Google Drive</span>
-              </div>
-            </ButtonItem>
-          </PanelSectionRow>
-        )}
-
-        {waiting && lanUrl && (
+        {showLoginPanel && (
           <>
-            <PanelSectionRow>
-              <div style={{ width: "100%", textAlign: "center", padding: "8px 0" }}>
-                <img
-                  src={qrImageUrl(lanUrl)}
-                  alt="Login QR"
-                  width={200}
-                  height={200}
-                  style={{
-                    borderRadius: 4,
-                    border: `2px solid ${C.cyan}`,
-                    background: "#fff",
-                  }}
-                />
-                <div
-                  style={{
-                    marginTop: 8,
-                    fontSize: 11,
-                    color: C.cyan,
-                    wordBreak: "break-all",
-                    fontFamily: "Consolas, monospace",
-                  }}
-                >
-                  {lanUrl}
+            {(qrSvg || lanUrl) && (
+              <PanelSectionRow>
+                <div style={{ width: "100%", textAlign: "center", padding: "8px 0" }}>
+                  {qrSvg ? (
+                    <div
+                      style={{
+                        display: "inline-block",
+                        padding: 8,
+                        background: "#fff",
+                        borderRadius: 4,
+                        border: `2px solid ${C.cyan}`,
+                      }}
+                      dangerouslySetInnerHTML={{ __html: qrSvg }}
+                    />
+                  ) : (
+                    <div style={{ color: C.warn, fontSize: 12, padding: 12 }}>
+                      QR rendering failed — use the URL below on your phone browser.
+                    </div>
+                  )}
+                  <div
+                    style={{
+                      marginTop: 10,
+                      fontSize: 12,
+                      color: C.cyan,
+                      wordBreak: "break-all",
+                      fontFamily: "Consolas, monospace",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {lanUrl || "…"}
+                  </div>
+                  <div style={{ marginTop: 6, fontSize: 11, color: C.muted }}>
+                    Phone must be on the same Wi‑Fi as the Deck
+                  </div>
                 </div>
-                <div style={{ marginTop: 6, fontSize: 11, color: C.muted }}>
-                  Phone must be on the same Wi‑Fi as the Deck
-                </div>
-              </div>
-            </PanelSectionRow>
-            <PanelSectionRow>
-              <ButtonItem layout="below" onClick={cancelLogin}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                  <FaTimes size={12} />
-                  <span>Cancel</span>
-                </div>
-              </ButtonItem>
-            </PanelSectionRow>
-          </>
-        )}
+              </PanelSectionRow>
+            )}
 
-        {!authed && (
-          <>
-            <PanelSectionRow>
-              <ButtonItem
-                layout="below"
-                onClick={async () => {
-                  const next = !showPaste;
-                  setShowPaste(next);
-                  if (next && !waiting) {
-                    await startLogin();
-                  }
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                  <FaKey size={11} />
-                  <span>{showPaste ? "Hide paste field" : "Paste code on Deck instead"}</span>
-                </div>
-              </ButtonItem>
-            </PanelSectionRow>
-            {showPaste && (
+            {!lanUrl && (
+              <PanelSectionRow>
+                <ButtonItem layout="below" onClick={() => startLogin(false)} disabled={busyLogin}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                    <FaGoogle size={13} />
+                    <span>{busyLogin ? "Starting…" : "Show login QR"}</span>
+                  </div>
+                </ButtonItem>
+              </PanelSectionRow>
+            )}
+
+            {lanUrl && (
               <>
                 <PanelSectionRow>
-                  <TextField
-                    label="Auth URL / code"
-                    value={manualCode}
-                    onChange={(e) => setManualCode(e.target.value)}
-                  />
+                  <ButtonItem
+                    layout="below"
+                    onClick={async () => {
+                      const ok = await copyText(lanUrl);
+                      toaster.toast({
+                        title: ok ? "Copied" : "Copy failed",
+                        body: ok ? "Open this URL on your phone" : lanUrl,
+                        duration: 4000,
+                      });
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                      <FaCopy size={12} />
+                      <span>Copy login link</span>
+                    </div>
+                  </ButtonItem>
                 </PanelSectionRow>
                 <PanelSectionRow>
-                  <ButtonItem layout="below" onClick={submitManual} disabled={!manualCode.trim()}>
-                    Connect with pasted code
+                  <ButtonItem layout="below" onClick={() => startLogin(false)} disabled={busyLogin}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                      <FaSyncAlt size={12} />
+                      <span>Refresh QR</span>
+                    </div>
+                  </ButtonItem>
+                </PanelSectionRow>
+                <PanelSectionRow>
+                  <ButtonItem layout="below" onClick={cancelLogin}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                      <FaTimes size={12} />
+                      <span>Cancel</span>
+                    </div>
                   </ButtonItem>
                 </PanelSectionRow>
               </>
             )}
+
+            <PanelSectionRow>
+              <TextField
+                label="Or paste code / 127.0.0.1 URL here"
+                value={manualCode}
+                onChange={(e) => setManualCode(e.target.value)}
+              />
+            </PanelSectionRow>
+            <PanelSectionRow>
+              <ButtonItem layout="below" onClick={submitManual} disabled={!manualCode.trim()}>
+                Connect with pasted code
+              </ButtonItem>
+            </PanelSectionRow>
           </>
         )}
 
@@ -510,10 +608,7 @@ const Content: FC = () => {
                     {emu.save_count} file{emu.save_count === 1 ? "" : "s"} · {emu.category}
                   </div>
                 </div>
-                <ButtonItem
-                  onClick={() => doSync(emu.id)}
-                  disabled={syncing || !authed}
-                >
+                <ButtonItem onClick={() => doSync(emu.id)} disabled={syncing || !authed}>
                   {syncing && syncTarget === emu.id ? "…" : "Sync"}
                 </ButtonItem>
               </div>
@@ -562,7 +657,7 @@ const Content: FC = () => {
       <PanelSection title="About">
         <PanelSectionRow>
           <Field label="Version" description="Decky plugin">
-            <span style={{ color: C.cyan, fontWeight: 700 }}>v2.0.0</span>
+            <span style={{ color: C.cyan, fontWeight: 700 }}>v{version}</span>
           </Field>
         </PanelSectionRow>
       </PanelSection>
