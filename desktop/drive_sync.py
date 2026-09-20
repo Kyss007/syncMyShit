@@ -43,6 +43,19 @@ SCOPE_DRIVE_FILE = "https://www.googleapis.com/auth/drive.file"
 SCOPE_USER_EMAIL = "https://www.googleapis.com/auth/userinfo.email"
 
 
+def get_local_ip() -> str:
+    """Detects primary local network IP address of this device."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("10.255.255.255", 1))
+        ip = s.getsockname()[0]
+    except Exception:
+        ip = "127.0.0.1"
+    finally:
+        s.close()
+    return ip
+
+
 class GoogleOAuthManager:
     """Handles Google OAuth 2.0 PKCE authentication flow and token refresh."""
 
@@ -166,19 +179,6 @@ class GoogleOAuthManager:
         except Exception as e:
             logger.error(f"Failed to refresh Google Drive access token: {e}")
             return access_token
-
-def get_local_ip() -> str:
-    """Detects primary local network IP address of this device."""
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        s.connect(("10.255.255.255", 1))
-        ip = s.getsockname()[0]
-    except Exception:
-        ip = "127.0.0.1"
-    finally:
-        s.close()
-    return ip
-
 
     def get_mobile_url(self) -> str:
         """Returns the local LAN URL for the mobile companion login page."""

@@ -324,27 +324,6 @@ class Plugin:
             self._current_auth_url = auth_url
             self._current_mobile_url = mobile_url
 
-            import subprocess
-            import webbrowser
-
-            # Attempt to launch system browser for user deck or current user
-            for cmd in [
-                ["runuser", "-u", "deck", "--", "xdg-open", auth_url],
-                ["sudo", "-u", "deck", "xdg-open", auth_url],
-                ["runuser", "-u", "deck", "--", "steam", auth_url],
-                ["xdg-open", auth_url],
-            ]:
-                try:
-                    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    break
-                except Exception:
-                    pass
-
-            try:
-                webbrowser.open(auth_url)
-            except Exception:
-                pass
-
             return {"success": True, "auth_url": auth_url, "mobile_url": mobile_url}
         except Exception as e:
             logger.error(f"[syncMyShit] Failed to start Google login: {e}", exc_info=True)

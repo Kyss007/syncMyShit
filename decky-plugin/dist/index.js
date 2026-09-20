@@ -2302,9 +2302,6 @@ function FaKey(props) {
 function FaGamepad(props) {
   return GenIcon({ "tag": "svg", "attr": { "viewBox": "0 0 640 512" }, "child": [{ "tag": "path", "attr": { "d": "M480.07 96H160a160 160 0 1 0 114.24 272h91.52A160 160 0 1 0 480.07 96zM248 268a12 12 0 0 1-12 12h-52v52a12 12 0 0 1-12 12h-24a12 12 0 0 1-12-12v-52H84a12 12 0 0 1-12-12v-24a12 12 0 0 1 12-12h52v-52a12 12 0 0 1 12-12h24a12 12 0 0 1 12 12v52h52a12 12 0 0 1 12 12zm216 76a40 40 0 1 1 40-40 40 40 0 0 1-40 40zm64-96a40 40 0 1 1 40-40 40 40 0 0 1-40 40z" }, "child": [] }] })(props);
 }
-function FaExternalLinkAlt(props) {
-  return GenIcon({ "tag": "svg", "attr": { "viewBox": "0 0 512 512" }, "child": [{ "tag": "path", "attr": { "d": "M432,320H400a16,16,0,0,0-16,16V448H64V128H208a16,16,0,0,0,16-16V80a16,16,0,0,0-16-16H48A48,48,0,0,0,0,112V464a48,48,0,0,0,48,48H400a48,48,0,0,0,48-48V336A16,16,0,0,0,432,320ZM488,0h-128c-21.37,0-32.05,25.91-17,41l35.73,35.73L135,320.37a24,24,0,0,0,0,34L157.67,377a24,24,0,0,0,34,0L435.28,133.32,471,169c15,15,41,4.5,41-17V24A24,24,0,0,0,488,0Z" }, "child": [] }] })(props);
-}
 function FaExclamationCircle(props) {
   return GenIcon({ "tag": "svg", "attr": { "viewBox": "0 0 512 512" }, "child": [{ "tag": "path", "attr": { "d": "M504 256c0 136.997-111.043 248-248 248S8 392.997 8 256C8 119.083 119.043 8 256 8s248 111.083 248 248zm-248 50c-25.405 0-46 20.595-46 46s20.595 46 46 46 46-20.595 46-46-20.595-46-46-46zm-43.673-165.346l7.418 136c.347 6.364 5.609 11.346 11.982 11.346h48.546c6.373 0 11.635-4.982 11.982-11.346l7.418-136c.375-6.874-5.098-12.654-11.982-12.654h-63.383c-6.884 0-12.356 5.78-11.981 12.654z" }, "child": [] }] })(props);
 }
@@ -2333,49 +2330,6 @@ var formatTimestamp = (ts) => {
   if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
   if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
   return new Date(ts * 1e3).toLocaleDateString();
-};
-var openBrowserUrl = (url) => {
-  if (!url) return false;
-  const win = window;
-  try {
-    if (typeof win.SteamClient?.Shell?.OpenURL === "function") {
-      win.SteamClient.Shell.OpenURL(url);
-      return true;
-    }
-  } catch (e) {
-    console.warn("[syncMyShit] SteamClient.Shell.OpenURL failed:", e);
-  }
-  try {
-    if (typeof win.SteamClient?.System?.OpenURLInSystemBrowser === "function") {
-      win.SteamClient.System.OpenURLInSystemBrowser(url);
-      return true;
-    }
-  } catch (e) {
-    console.warn("[syncMyShit] SteamClient.System.OpenURLInSystemBrowser failed:", e);
-  }
-  try {
-    if (typeof win.SteamClient?.System?.OpenBrowser === "function") {
-      win.SteamClient.System.OpenBrowser(url);
-      return true;
-    }
-  } catch (e) {
-    console.warn("[syncMyShit] SteamClient.System.OpenBrowser failed:", e);
-  }
-  try {
-    if (typeof win.Navigation?.NavigateToExternalWeb === "function") {
-      win.Navigation.NavigateToExternalWeb(url);
-      return true;
-    }
-  } catch (e) {
-    console.warn("[syncMyShit] Navigation.NavigateToExternalWeb failed:", e);
-  }
-  try {
-    window.open(url, "_blank");
-    return true;
-  } catch (e) {
-    console.warn("[syncMyShit] window.open failed:", e);
-  }
-  return false;
 };
 var copyToClipboard = async (text) => {
   if (!text) return;
@@ -2421,8 +2375,7 @@ var Content = () => {
   const [loggingIn, setLoggingIn] = (0, import_react3.useState)(false);
   const [authUrl, setAuthUrl] = (0, import_react3.useState)("");
   const [mobileUrl, setMobileUrl] = (0, import_react3.useState)("");
-  const [qrDataUrl, setQrDataUrl] = (0, import_react3.useState)("");
-  const [qrMode, setQrMode] = (0, import_react3.useState)("mobile");
+  const [qrSvg, setQrSvg] = (0, import_react3.useState)("");
   const [manualCode, setManualCode] = (0, import_react3.useState)("");
   const [showManualCode, setShowManualCode] = (0, import_react3.useState)(false);
   const refreshData = async () => {
@@ -2438,7 +2391,7 @@ var Content = () => {
           setAuthUrl("");
           setMobileUrl("");
           setLoggingIn(false);
-          setQrDataUrl("");
+          setQrSvg("");
         } else if (st.is_authenticating && (st.mobile_url || st.auth_url)) {
           setLoggingIn(true);
           setAuthUrl(st.auth_url || "");
@@ -2469,7 +2422,7 @@ var Content = () => {
           setLoggingIn(false);
           setAuthUrl("");
           setMobileUrl("");
-          setQrDataUrl("");
+          setQrSvg("");
           toaster.toast({
             title: "Google Drive Connected!",
             body: `Signed in as ${st.email}`,
@@ -2484,18 +2437,18 @@ var Content = () => {
   }, [loggingIn]);
   (0, import_react3.useEffect)(() => {
     if (!loggingIn) {
-      setQrDataUrl("");
+      setQrSvg("");
       return;
     }
-    const target = qrMode === "mobile" && mobileUrl ? mobileUrl : authUrl;
+    const target = mobileUrl || authUrl;
     if (target) {
-      import_qrcode.default.toDataURL(target, {
-        width: 220,
-        margin: 1,
+      import_qrcode.default.toString(target, {
+        type: "svg",
+        margin: 2,
         color: { dark: "#000000", light: "#ffffff" }
-      }).then((url) => setQrDataUrl(url)).catch((err) => console.error("[syncMyShit] QR Code generation error:", err));
+      }).then((svg) => setQrSvg(svg)).catch((err) => console.error("[syncMyShit] QR Code generation error:", err));
     }
-  }, [loggingIn, authUrl, mobileUrl, qrMode]);
+  }, [loggingIn, authUrl, mobileUrl]);
   const handleStartGoogleLogin = async () => {
     setLoggingIn(true);
     try {
@@ -2503,7 +2456,6 @@ var Content = () => {
       if (res.success && res.auth_url) {
         setAuthUrl(res.auth_url);
         setMobileUrl(res.mobile_url || "");
-        openBrowserUrl(res.auth_url);
         toaster.toast({
           title: "Scan QR Code with Phone",
           body: "Point your phone camera at the QR code on screen to sign in.",
@@ -2530,7 +2482,7 @@ var Content = () => {
     setLoggingIn(false);
     setAuthUrl("");
     setMobileUrl("");
-    setQrDataUrl("");
+    setQrSvg("");
     try {
       await apiCancelGoogleLogin();
     } catch (e) {
@@ -2753,24 +2705,7 @@ var Content = () => {
         disabled: loggingIn
       },
       /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaQrcode, { size: 13 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, "Sign In with Phone QR Code"))
-    )), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
-      "div",
-      {
-        style: {
-          fontSize: "10px",
-          color: "#64748b",
-          lineHeight: 1.35,
-          width: "100%",
-          boxSizing: "border-box",
-          padding: "2px 4px"
-        }
-      },
-      "\u{1F4A1} ",
-      /* @__PURE__ */ window.SP_REACT.createElement("span", { style: { color: "#94a3b8" } }, "Desktop Mode alternative:"),
-      " Open Konsole in Desktop Mode and run ",
-      /* @__PURE__ */ window.SP_REACT.createElement("code", { style: { color: "#38bdf8" } }, "syncmyshit login"),
-      " to sign in with your desktop browser."
-    ))) : /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, qrDataUrl && /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
+    ))) : /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, qrSvg ? /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
       "div",
       {
         style: {
@@ -2788,24 +2723,17 @@ var Content = () => {
       /* @__PURE__ */ window.SP_REACT.createElement(
         "div",
         {
+          dangerouslySetInnerHTML: { __html: qrSvg },
           style: {
             background: "#ffffff",
             padding: "8px",
             borderRadius: "8px",
             boxShadow: "0 4px 14px rgba(0,0,0,0.6)",
-            display: "inline-block"
+            display: "inline-block",
+            width: "180px",
+            height: "180px"
           }
-        },
-        /* @__PURE__ */ window.SP_REACT.createElement(
-          "img",
-          {
-            src: qrDataUrl,
-            width: 180,
-            height: 180,
-            style: { display: "block" },
-            alt: "Login QR Code"
-          }
-        )
+        }
       ),
       /* @__PURE__ */ window.SP_REACT.createElement(
         "div",
@@ -2819,27 +2747,22 @@ var Content = () => {
             marginTop: "8px"
           }
         },
-        qrMode === "mobile" ? /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, /* @__PURE__ */ window.SP_REACT.createElement("strong", null, "1."), " Scan with phone camera", /* @__PURE__ */ window.SP_REACT.createElement("br", null), /* @__PURE__ */ window.SP_REACT.createElement("strong", null, "2."), " Tap ", /* @__PURE__ */ window.SP_REACT.createElement("em", null, "Sign in with Google"), " on phone", /* @__PURE__ */ window.SP_REACT.createElement("br", null), /* @__PURE__ */ window.SP_REACT.createElement("strong", null, "3."), " Paste callback link on phone & tap Connect!") : /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, "Direct Google sign-in link.", /* @__PURE__ */ window.SP_REACT.createElement("br", null), "After authorizing, paste the result below.")
+        /* @__PURE__ */ window.SP_REACT.createElement("strong", null, "1."),
+        " Scan with phone camera",
+        /* @__PURE__ */ window.SP_REACT.createElement("br", null),
+        /* @__PURE__ */ window.SP_REACT.createElement("strong", null, "2."),
+        " Tap ",
+        /* @__PURE__ */ window.SP_REACT.createElement("em", null, "Sign in with Google"),
+        " on phone",
+        /* @__PURE__ */ window.SP_REACT.createElement("br", null),
+        /* @__PURE__ */ window.SP_REACT.createElement("strong", null, "3."),
+        " Paste callback link & tap Connect!"
       )
-    )), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
+    )) : /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { fontSize: "12px", color: "#94a3b8", textAlign: "center", padding: "8px 0" } }, "Generating QR code...")), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
       import_ui.ButtonItem,
       {
         layout: "below",
-        onClick: () => setQrMode(qrMode === "mobile" ? "direct" : "mobile")
-      },
-      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaSyncAlt, { size: 11 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, "Switch to ", qrMode === "mobile" ? "Direct Google QR" : "Phone Companion QR"))
-    )), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
-      import_ui.ButtonItem,
-      {
-        layout: "below",
-        onClick: () => openBrowserUrl(authUrl)
-      },
-      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaExternalLinkAlt, { size: 11 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, "\u{1F310} Open Browser on Steam Deck"))
-    )), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
-      import_ui.ButtonItem,
-      {
-        layout: "below",
-        onClick: () => copyToClipboard(qrMode === "mobile" && mobileUrl ? mobileUrl : authUrl)
+        onClick: () => copyToClipboard(mobileUrl || authUrl)
       },
       /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaCopy, { size: 11 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, "\u{1F4CB} Copy Link to Clipboard"))
     )), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(

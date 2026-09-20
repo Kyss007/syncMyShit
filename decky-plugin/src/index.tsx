@@ -13,17 +13,16 @@ import QRCode from "qrcode";
 import {
   FaCheckCircle,
   FaExclamationCircle,
-  FaGoogle,
   FaGamepad,
   FaSyncAlt,
   FaTrashAlt,
   FaSignOutAlt,
   FaKey,
-  FaExternalLinkAlt,
   FaCopy,
   FaTimes,
   FaQrcode,
 } from "react-icons/fa";
+
 
 // RPC method typings
 interface StatusResponse {
@@ -106,61 +105,6 @@ const formatTimestamp = (ts: number): string => {
   return new Date(ts * 1000).toLocaleDateString();
 };
 
-// Browser opening helper for Steam Deck CEF / Game Mode
-const openBrowserUrl = (url: string): boolean => {
-  if (!url) return false;
-  const win = window as any;
-
-  // 1. SteamClient.Shell.OpenURL (Valve standard for Game Mode CEF)
-  try {
-    if (typeof win.SteamClient?.Shell?.OpenURL === "function") {
-      win.SteamClient.Shell.OpenURL(url);
-      return true;
-    }
-  } catch (e) {
-    console.warn("[syncMyShit] SteamClient.Shell.OpenURL failed:", e);
-  }
-
-  // 2. SteamClient.System.OpenURLInSystemBrowser
-  try {
-    if (typeof win.SteamClient?.System?.OpenURLInSystemBrowser === "function") {
-      win.SteamClient.System.OpenURLInSystemBrowser(url);
-      return true;
-    }
-  } catch (e) {
-    console.warn("[syncMyShit] SteamClient.System.OpenURLInSystemBrowser failed:", e);
-  }
-
-  // 3. SteamClient.System.OpenBrowser
-  try {
-    if (typeof win.SteamClient?.System?.OpenBrowser === "function") {
-      win.SteamClient.System.OpenBrowser(url);
-      return true;
-    }
-  } catch (e) {
-    console.warn("[syncMyShit] SteamClient.System.OpenBrowser failed:", e);
-  }
-
-  // 4. Navigation.NavigateToExternalWeb
-  try {
-    if (typeof win.Navigation?.NavigateToExternalWeb === "function") {
-      win.Navigation.NavigateToExternalWeb(url);
-      return true;
-    }
-  } catch (e) {
-    console.warn("[syncMyShit] Navigation.NavigateToExternalWeb failed:", e);
-  }
-
-  // 5. Standard fallback
-  try {
-    window.open(url, "_blank");
-    return true;
-  } catch (e) {
-    console.warn("[syncMyShit] window.open failed:", e);
-  }
-
-  return false;
-};
 
 // Clipboard helper for Steam Deck CEF
 const copyToClipboard = async (text: string) => {
@@ -208,8 +152,7 @@ const Content: FC = () => {
   const [loggingIn, setLoggingIn] = useState<boolean>(false);
   const [authUrl, setAuthUrl] = useState<string>("");
   const [mobileUrl, setMobileUrl] = useState<string>("");
-  const [qrDataUrl, setQrDataUrl] = useState<string>("");
-  const [qrMode, setQrMode] = useState<"mobile" | "direct">("mobile");
+  const [qrSvg, setQrSvg] = useState<string>("");
   const [manualCode, setManualCode] = useState<string>("");
   const [showManualCode, setShowManualCode] = useState<boolean>(false);
 
@@ -227,7 +170,7 @@ const Content: FC = () => {
           setAuthUrl("");
           setMobileUrl("");
           setLoggingIn(false);
-          setQrDataUrl("");
+          setQrSvg("");
         } else if (st.is_authenticating && (st.mobile_url || st.auth_url)) {
           // Persist login state even after QAM closed and reopened
           setLoggingIn(true);
@@ -262,7 +205,7 @@ const Content: FC = () => {
           setLoggingIn(false);
           setAuthUrl("");
           setMobileUrl("");
-          setQrDataUrl("");
+          setQrSvg("");
           toaster.toast({
             title: "Google Drive Connected!",
             body: `Signed in as ${st.email}`,
@@ -277,23 +220,23 @@ const Content: FC = () => {
     return () => clearInterval(interval);
   }, [loggingIn]);
 
-  // Generate QR Code image when in login mode
+  // Generate QR Code SVG when in login mode (SVG avoids canvas dependency in Decky CEF)
   useEffect(() => {
     if (!loggingIn) {
-      setQrDataUrl("");
+      setQrSvg("");
       return;
     }
-    const target = qrMode === "mobile" && mobileUrl ? mobileUrl : authUrl;
+    const target = mobileUrl || authUrl;
     if (target) {
-      QRCode.toDataURL(target, {
-        width: 220,
-        margin: 1,
+      QRCode.toString(target, {
+        type: "svg",
+        margin: 2,
         color: { dark: "#000000", light: "#ffffff" },
       })
-        .then((url) => setQrDataUrl(url))
-        .catch((err) => console.error("[syncMyShit] QR Code generation error:", err));
+        .then((svg: string) => setQrSvg(svg))
+        .catch((err: any) => console.error("[syncMyShit] QR Code generation error:", err));
     }
-  }, [loggingIn, authUrl, mobileUrl, qrMode]);
+  }, [loggingIn, authUrl, mobileUrl]);
 
   // Start Google Drive OAuth Login
   const handleStartGoogleLogin = async () => {
@@ -303,7 +246,6 @@ const Content: FC = () => {
       if (res.success && res.auth_url) {
         setAuthUrl(res.auth_url);
         setMobileUrl(res.mobile_url || "");
-        openBrowserUrl(res.auth_url);
         toaster.toast({
           title: "Scan QR Code with Phone",
           body: "Point your phone camera at the QR code on screen to sign in.",
@@ -332,7 +274,7 @@ const Content: FC = () => {
     setLoggingIn(false);
     setAuthUrl("");
     setMobileUrl("");
-    setQrDataUrl("");
+    setQrSvg("");
     try {
       await apiCancelGoogleLogin();
     } catch (e) {}
@@ -614,26 +556,11 @@ const Content: FC = () => {
                     </div>
                   </ButtonItem>
                 </PanelSectionRow>
-
-                <PanelSectionRow>
-                  <div
-                    style={{
-                      fontSize: "10px",
-                      color: "#64748b",
-                      lineHeight: 1.35,
-                      width: "100%",
-                      boxSizing: "border-box",
-                      padding: "2px 4px",
-                    }}
-                  >
-                    💡 <span style={{ color: "#94a3b8" }}>Desktop Mode alternative:</span> Open Konsole in Desktop Mode and run <code style={{ color: "#38bdf8" }}>syncmyshit login</code> to sign in with your desktop browser.
-                  </div>
-                </PanelSectionRow>
               </>
             ) : (
               <>
-                {/* QR Code Display */}
-                {qrDataUrl && (
+                {/* QR Code Display - uses inline SVG, no canvas needed */}
+                {qrSvg ? (
                   <PanelSectionRow>
                     <div
                       style={{
@@ -649,23 +576,17 @@ const Content: FC = () => {
                       }}
                     >
                       <div
+                        dangerouslySetInnerHTML={{ __html: qrSvg }}
                         style={{
                           background: "#ffffff",
                           padding: "8px",
                           borderRadius: "8px",
                           boxShadow: "0 4px 14px rgba(0,0,0,0.6)",
                           display: "inline-block",
+                          width: "180px",
+                          height: "180px",
                         }}
-                      >
-                        <img
-                          src={qrDataUrl}
-                          width={180}
-                          height={180}
-                          style={{ display: "block" }}
-                          alt="Login QR Code"
-                        />
-                      </div>
-
+                      />
                       <div
                         style={{
                           fontSize: "11px",
@@ -676,53 +597,26 @@ const Content: FC = () => {
                           marginTop: "8px",
                         }}
                       >
-                        {qrMode === "mobile" ? (
-                          <>
-                            <strong>1.</strong> Scan with phone camera<br />
-                            <strong>2.</strong> Tap <em>Sign in with Google</em> on phone<br />
-                            <strong>3.</strong> Paste callback link on phone &amp; tap Connect!
-                          </>
-                        ) : (
-                          <>
-                            Direct Google sign-in link.<br />After authorizing, paste the result below.
-                          </>
-                        )}
+                        <strong>1.</strong> Scan with phone camera<br />
+                        <strong>2.</strong> Tap <em>Sign in with Google</em> on phone<br />
+                        <strong>3.</strong> Paste callback link &amp; tap Connect!
                       </div>
+                    </div>
+                  </PanelSectionRow>
+                ) : (
+                  <PanelSectionRow>
+                    <div style={{ fontSize: "12px", color: "#94a3b8", textAlign: "center", padding: "8px 0" }}>
+                      Generating QR code...
                     </div>
                   </PanelSectionRow>
                 )}
 
-                {/* QR Mode Switcher */}
-                <PanelSectionRow>
-                  <ButtonItem
-                    layout="below"
-                    onClick={() => setQrMode(qrMode === "mobile" ? "direct" : "mobile")}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
-                      <FaSyncAlt size={11} />
-                      <span>Switch to {qrMode === "mobile" ? "Direct Google QR" : "Phone Companion QR"}</span>
-                    </div>
-                  </ButtonItem>
-                </PanelSectionRow>
-
-                {/* Open in Deck browser if user is in desktop mode or has browser */}
-                <PanelSectionRow>
-                  <ButtonItem
-                    layout="below"
-                    onClick={() => openBrowserUrl(authUrl)}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
-                      <FaExternalLinkAlt size={11} />
-                      <span>🌐 Open Browser on Steam Deck</span>
-                    </div>
-                  </ButtonItem>
-                </PanelSectionRow>
 
                 {/* Copy Link */}
                 <PanelSectionRow>
                   <ButtonItem
                     layout="below"
-                    onClick={() => copyToClipboard(qrMode === "mobile" && mobileUrl ? mobileUrl : authUrl)}
+                    onClick={() => copyToClipboard(mobileUrl || authUrl)}
                   >
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
                       <FaCopy size={11} />
