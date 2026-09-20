@@ -1,6 +1,7 @@
 import {
   ButtonItem,
   Field,
+  Navigation,
   PanelSection,
   PanelSectionRow,
   staticClasses,
@@ -10,19 +11,20 @@ import {
 import { callable, definePlugin, toaster } from "@decky/api";
 import { useEffect, useState, FC } from "react";
 
-
 import {
   FaCheckCircle,
   FaExclamationCircle,
   FaGamepad,
+  FaGoogle,
   FaSyncAlt,
   FaTrashAlt,
   FaSignOutAlt,
   FaKey,
-  FaCopy,
   FaTimes,
-  FaQrcode,
+  FaExternalLinkAlt,
+  FaCopy,
 } from "react-icons/fa";
+
 
 
 // RPC method typings
@@ -33,50 +35,40 @@ interface StatusResponse {
   auth_url?: string;
   mobile_url?: string;
   email: string;
-  drive_folder: string;
+  last_sync_timestamp: number;
   auto_sync: boolean;
   is_monitoring: boolean;
-  last_sync_timestamp: number;
-  detected_emulators_count: number;
-  custom_paths_count: number;
-  keep_backups: number;
-}
-
-interface EmulatorSavePreview {
-  name: string;
-  relative: string;
-  size: number;
-  mtime: number;
 }
 
 interface EmulatorItem {
   id: string;
   name: string;
   category: string;
-  paths: string[];
-  drive_folder: string;
+  save_path: string;
+  exists: boolean;
   save_count: number;
-  saves: EmulatorSavePreview[];
+  last_sync?: number;
 }
 
 interface ScanResponse {
   success: boolean;
-  total_saves: number;
   emulators: EmulatorItem[];
+  total_saves: number;
 }
 
 interface SyncResponse {
   success: boolean;
-  operations_count: number;
-  logs: string[];
-  message: string;
-  timestamp: number;
+  uploaded: number;
+  downloaded: number;
+  conflicts_resolved: number;
+  error?: string;
 }
 
 interface LogEntry {
-  time: string;
-  emulator: string;
+  timestamp: string;
+  status: "success" | "error" | "conflict";
   message: string;
+  file_count: number;
   type: "upload" | "download";
 }
 
@@ -94,6 +86,7 @@ const apiGetRecentLogs = callable<[], LogsResponse>("get_recent_logs");
 const apiClearLogs = callable<[], { success: boolean }>("clear_logs");
 const apiStartGoogleLogin = callable<[], { success: boolean; auth_url?: string; mobile_url?: string; error?: string }>("start_google_login");
 const apiCancelGoogleLogin = callable<[], { success: boolean }>("cancel_google_login");
+const apiOpenBrowser = callable<[url: string], { success: boolean; error?: string }>("open_browser");
 const apiSubmitAuthCode = callable<[code: string], { success: boolean; email?: string; error?: string }>("submit_auth_code");
 const apiSignOutGoogle = callable<[], { success: boolean }>("sign_out_google");
 
@@ -152,16 +145,8 @@ const Content: FC = () => {
   const [syncTargetId, setSyncTargetId] = useState<string | null>(null);
   const [loggingIn, setLoggingIn] = useState<boolean>(false);
   const [authUrl, setAuthUrl] = useState<string>("");
-  const [mobileUrl, setMobileUrl] = useState<string>("");
   const [manualCode, setManualCode] = useState<string>("");
   const [showManualCode, setShowManualCode] = useState<boolean>(false);
-
-  // Derived: QR image URL pointing at phone companion page (or direct auth URL)
-  // Uses api.qrserver.com — a free QR image API, internet already required for Drive
-  const qrTarget = mobileUrl || authUrl;
-  const qrImgUrl = qrTarget
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=190x190&margin=8&data=${encodeURIComponent(qrTarget)}`
-    : "";
 
   // Load status and emulator scans
   const refreshData = async () => {
@@ -175,13 +160,11 @@ const Content: FC = () => {
         setStatus(st);
         if (st.is_authenticated) {
           setAuthUrl("");
-          setMobileUrl("");
           setLoggingIn(false);
-        } else if (st.is_authenticating && (st.mobile_url || st.auth_url)) {
-          // Persist login state even after QAM closed and reopened
+        } else if (st.is_authenticating && st.auth_url) {
+          // Restore sign-in state if QAM was closed during login
           setLoggingIn(true);
-          setAuthUrl(st.auth_url || "");
-          setMobileUrl(st.mobile_url || "");
+          setAuthUrl(st.auth_url);
         }
       }
       if (sc.success) {
@@ -200,7 +183,7 @@ const Content: FC = () => {
     refreshData();
   }, []);
 
-  // Poll status while waiting for Google OAuth sign-in completion
+  // Poll every 2 s while waiting for the browser OAuth callback to land
   useEffect(() => {
     if (!loggingIn) return;
     const interval = setInterval(async () => {
@@ -210,7 +193,6 @@ const Content: FC = () => {
           setStatus(st);
           setLoggingIn(false);
           setAuthUrl("");
-          setMobileUrl("");
           toaster.toast({
             title: "Google Drive Connected!",
             body: `Signed in as ${st.email}`,
@@ -219,24 +201,55 @@ const Content: FC = () => {
           await refreshData();
         }
       } catch (e) {
-        // ignore poll errors
+        // ignore transient poll errors
       }
     }, 2000);
     return () => clearInterval(interval);
   }, [loggingIn]);
 
-  // Start Google Drive OAuth Login
+  // Launch browser on the machine via multiple pathways
+  const launchBrowser = async (url: string) => {
+    if (!url) return;
+
+    // 1. Backend process launch (steam://openurl, xdg-open, flatpak as user deck)
+    apiOpenBrowser(url).catch((e) => console.warn("[syncMyShit] apiOpenBrowser failed:", e));
+
+    // 2. Steam GamepadUI Navigation APIs
+    try {
+      Navigation.NavigateToExternalWeb(url);
+    } catch (e) {
+      console.warn("[syncMyShit] NavigateToExternalWeb failed:", e);
+    }
+
+    try {
+      Navigation.NavigateToSteamWeb(url);
+    } catch (e) {
+      console.warn("[syncMyShit] NavigateToSteamWeb failed:", e);
+    }
+
+    // 3. Fallback window.open
+    try {
+      window.open(url, "_blank");
+    } catch (e) {}
+
+    // 4. Close side menu so the browser window is visible
+    try {
+      Navigation.CloseSideMenus();
+    } catch (e) {}
+  };
+
+  // Open the Google sign-in page in the Steam browser
   const handleStartGoogleLogin = async () => {
     setLoggingIn(true);
     try {
       const res = await apiStartGoogleLogin();
       if (res.success && res.auth_url) {
         setAuthUrl(res.auth_url);
-        setMobileUrl(res.mobile_url || "");
+        await launchBrowser(res.auth_url);
         toaster.toast({
-          title: "Scan QR Code with Phone",
-          body: "Point your phone camera at the QR code on screen to sign in.",
-          duration: 6000,
+          title: "Browser Opened",
+          body: "Complete sign-in in the browser, then return to Gaming Mode.",
+          duration: 7000,
         });
       } else {
         setLoggingIn(false);
@@ -260,13 +273,12 @@ const Content: FC = () => {
   const handleCancelLogin = async () => {
     setLoggingIn(false);
     setAuthUrl("");
-    setMobileUrl("");
     try {
       await apiCancelGoogleLogin();
     } catch (e) {}
   };
 
-  // Submit manual authorization code / URL
+  // Submit manual authorization code / URL (fallback)
   const handleSubmitManualCode = async () => {
     if (!manualCode.trim()) return;
     try {
@@ -276,8 +288,6 @@ const Content: FC = () => {
         setShowManualCode(false);
         setLoggingIn(false);
         setAuthUrl("");
-        setMobileUrl("");
-        setQrDataUrl("");
         toaster.toast({
           title: "Google Drive Connected!",
           body: `Signed in as ${res.email || "Google Drive User"}`,
@@ -508,7 +518,7 @@ const Content: FC = () => {
                     <>
                       <FaSyncAlt className="fa-spin" style={{ color: "#38bdf8" }} size={13} />
                       <span style={{ fontWeight: 700, fontSize: "13px", color: "#38bdf8" }}>
-                        Waiting for Phone Sign-In...
+                        Waiting for Google Sign-In...
                       </span>
                     </>
                   ) : (
@@ -522,106 +532,58 @@ const Content: FC = () => {
                 </div>
                 <div style={{ fontSize: "11px", color: "#94a3b8", lineHeight: 1.35 }}>
                   {loggingIn
-                    ? "Point your phone camera at the QR code below to connect your Google account."
+                    ? "Complete authorization in your browser window. Once approved, syncMyShit connects automatically."
                     : "Sign in with your Google account to sync saves across your Steam Deck and Android handhelds."}
                 </div>
               </div>
             </PanelSectionRow>
 
             {!loggingIn ? (
-              <>
-                <PanelSectionRow>
-                  <ButtonItem
-                    layout="below"
-                    onClick={handleStartGoogleLogin}
-                    disabled={loggingIn}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" }}>
-                      <FaQrcode size={13} />
-                      <span>Sign In with Phone QR Code</span>
-                    </div>
-                  </ButtonItem>
-                </PanelSectionRow>
-              </>
+              <PanelSectionRow>
+                <ButtonItem
+                  layout="below"
+                  onClick={handleStartGoogleLogin}
+                  disabled={loggingIn}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" }}>
+                    <FaGoogle size={13} />
+                    <span>Sign In to Google Drive</span>
+                  </div>
+                </ButtonItem>
+              </PanelSectionRow>
             ) : (
               <>
-                {/* QR Code — loaded as image from QR API service */}
-                <PanelSectionRow>
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: "100%",
-                      boxSizing: "border-box",
-                      background: "rgba(0, 0, 0, 0.3)",
-                      padding: "10px",
-                      borderRadius: "8px",
-                    }}
-                  >
-                    {qrImgUrl ? (
-                      <div
-                        style={{
-                          background: "#ffffff",
-                          padding: "6px",
-                          borderRadius: "8px",
-                          boxShadow: "0 4px 14px rgba(0,0,0,0.6)",
-                          display: "inline-block",
-                        }}
-                      >
-                        <img
-                          src={qrImgUrl}
-                          width={190}
-                          height={190}
-                          style={{ display: "block" }}
-                          alt="Scan to sign in with Google"
-                        />
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: "12px", color: "#94a3b8", padding: "20px 0" }}>
-                        Starting sign-in server...
-                      </div>
-                    )}
-                    <div
-                      style={{
-                        fontSize: "11px",
-                        color: "#cbd5e1",
-                        lineHeight: 1.4,
-                        textAlign: "center",
-                        width: "100%",
-                        marginTop: "8px",
-                      }}
-                    >
-                      <strong>1.</strong> Scan with phone camera<br />
-                      <strong>2.</strong> Tap <em>Sign in with Google</em> on phone<br />
-                      <strong>3.</strong> Paste callback link &amp; tap Connect!
-                    </div>
-                  </div>
-                </PanelSectionRow>
-
-
-                {/* Copy Link */}
                 <PanelSectionRow>
                   <ButtonItem
                     layout="below"
-                    onClick={() => copyToClipboard(mobileUrl || authUrl)}
+                    onClick={() => launchBrowser(authUrl)}
                   >
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
-                      <FaCopy size={11} />
-                      <span>📋 Copy Link to Clipboard</span>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" }}>
+                      <FaExternalLinkAlt size={12} />
+                      <span>🌐 Re-open Browser Window</span>
                     </div>
                   </ButtonItem>
                 </PanelSectionRow>
 
-                {/* Cancel Sign-In */}
+                <PanelSectionRow>
+                  <ButtonItem
+                    layout="below"
+                    onClick={() => copyToClipboard(authUrl)}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" }}>
+                      <FaCopy size={12} />
+                      <span>📋 Copy Sign-In Link</span>
+                    </div>
+                  </ButtonItem>
+                </PanelSectionRow>
+
                 <PanelSectionRow>
                   <ButtonItem
                     layout="below"
                     onClick={handleCancelLogin}
                   >
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
-                      <FaTimes size={11} />
+                      <FaTimes size={12} />
                       <span>Cancel Sign-In</span>
                     </div>
                   </ButtonItem>
@@ -855,7 +817,7 @@ const Content: FC = () => {
       <PanelSection title="Plugin Info">
         <PanelSectionRow>
           <Field label="Version" description="syncMyShit Decky Plugin">
-            <span style={{ color: "#38bdf8", fontWeight: 700, fontSize: "12px" }}>v1.0.20</span>
+            <span style={{ color: "#38bdf8", fontWeight: 700, fontSize: "12px" }}>v1.0.21</span>
           </Field>
         </PanelSectionRow>
 

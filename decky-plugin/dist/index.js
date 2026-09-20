@@ -42,7 +42,7 @@ var require_react = __commonJS({
 var import_ui = __toESM(require_ui(), 1);
 
 // decky-manifest:@decky/manifest
-var manifest_default = { "name": "syncMyShit", "author": "Kyss007", "flags": [], "version": "1.0.20", "api_version": 1, "description": "Automagic retro emulator cloud save sync for Steam Deck, Android, & PC", "publish": { "tags": ["cloud", "save", "sync", "emulation", "gaming"], "description": "Automagic retro emulator cloud save sync across Steam Deck, Android, and PC with zero save-loss protection.", "image": "https://raw.githubusercontent.com/Kyss007/syncMyShit/main/docs/banner.png" } };
+var manifest_default = { "name": "syncMyShit", "author": "Kyss007", "flags": [], "version": "1.0.21", "api_version": 1, "description": "Automagic retro emulator cloud save sync for Steam Deck, Android, & PC", "publish": { "tags": ["cloud", "save", "sync", "emulation", "gaming"], "description": "Automagic retro emulator cloud save sync across Steam Deck, Android, and PC with zero save-loss protection.", "image": "https://raw.githubusercontent.com/Kyss007/syncMyShit/main/docs/banner.png" } };
 
 // decky-plugin/node_modules/@decky/api/dist/index.js
 var manifest = manifest_default;
@@ -202,6 +202,9 @@ function IconBase(props) {
 }
 
 // decky-plugin/node_modules/react-icons/fa/index.mjs
+function FaGoogle(props) {
+  return GenIcon({ "tag": "svg", "attr": { "viewBox": "0 0 488 512" }, "child": [{ "tag": "path", "attr": { "d": "M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z" }, "child": [] }] })(props);
+}
 function FaTrashAlt(props) {
   return GenIcon({ "tag": "svg", "attr": { "viewBox": "0 0 448 512" }, "child": [{ "tag": "path", "attr": { "d": "M32 464a48 48 0 0 0 48 48h288a48 48 0 0 0 48-48V128H32zm272-256a16 16 0 0 1 32 0v224a16 16 0 0 1-32 0zm-96 0a16 16 0 0 1 32 0v224a16 16 0 0 1-32 0zm-96 0a16 16 0 0 1 32 0v224a16 16 0 0 1-32 0zM432 32H312l-9.4-18.7A24 24 0 0 0 281.1 0H166.8a23.72 23.72 0 0 0-21.4 13.3L136 32H16A16 16 0 0 0 0 48v32a16 16 0 0 0 16 16h416a16 16 0 0 0 16-16V48a16 16 0 0 0-16-16z" }, "child": [] }] })(props);
 }
@@ -214,14 +217,14 @@ function FaSyncAlt(props) {
 function FaSignOutAlt(props) {
   return GenIcon({ "tag": "svg", "attr": { "viewBox": "0 0 512 512" }, "child": [{ "tag": "path", "attr": { "d": "M497 273L329 441c-15 15-41 4.5-41-17v-96H152c-13.3 0-24-10.7-24-24v-96c0-13.3 10.7-24 24-24h136V88c0-21.4 25.9-32 41-17l168 168c9.3 9.4 9.3 24.6 0 34zM192 436v-40c0-6.6-5.4-12-12-12H96c-17.7 0-32-14.3-32-32V160c0-17.7 14.3-32 32-32h84c6.6 0 12-5.4 12-12V76c0-6.6-5.4-12-12-12H96c-53 0-96 43-96 96v192c0 53 43 96 96 96h84c6.6 0 12-5.4 12-12z" }, "child": [] }] })(props);
 }
-function FaQrcode(props) {
-  return GenIcon({ "tag": "svg", "attr": { "viewBox": "0 0 448 512" }, "child": [{ "tag": "path", "attr": { "d": "M0 224h192V32H0v192zM64 96h64v64H64V96zm192-64v192h192V32H256zm128 128h-64V96h64v64zM0 480h192V288H0v192zm64-128h64v64H64v-64zm352-64h32v128h-96v-32h-32v96h-64V288h96v32h64v-32zm0 160h32v32h-32v-32zm-64 0h32v32h-32v-32z" }, "child": [] }] })(props);
-}
 function FaKey(props) {
   return GenIcon({ "tag": "svg", "attr": { "viewBox": "0 0 512 512" }, "child": [{ "tag": "path", "attr": { "d": "M512 176.001C512 273.203 433.202 352 336 352c-11.22 0-22.19-1.062-32.827-3.069l-24.012 27.014A23.999 23.999 0 0 1 261.223 384H224v40c0 13.255-10.745 24-24 24h-40v40c0 13.255-10.745 24-24 24H24c-13.255 0-24-10.745-24-24v-78.059c0-6.365 2.529-12.47 7.029-16.971l161.802-161.802C163.108 213.814 160 195.271 160 176 160 78.798 238.797.001 335.999 0 433.488-.001 512 78.511 512 176.001zM336 128c0 26.51 21.49 48 48 48s48-21.49 48-48-21.49-48-48-48-48 21.49-48 48z" }, "child": [] }] })(props);
 }
 function FaGamepad(props) {
   return GenIcon({ "tag": "svg", "attr": { "viewBox": "0 0 640 512" }, "child": [{ "tag": "path", "attr": { "d": "M480.07 96H160a160 160 0 1 0 114.24 272h91.52A160 160 0 1 0 480.07 96zM248 268a12 12 0 0 1-12 12h-52v52a12 12 0 0 1-12 12h-24a12 12 0 0 1-12-12v-52H84a12 12 0 0 1-12-12v-24a12 12 0 0 1 12-12h52v-52a12 12 0 0 1 12-12h24a12 12 0 0 1 12 12v52h52a12 12 0 0 1 12 12zm216 76a40 40 0 1 1 40-40 40 40 0 0 1-40 40zm64-96a40 40 0 1 1 40-40 40 40 0 0 1-40 40z" }, "child": [] }] })(props);
+}
+function FaExternalLinkAlt(props) {
+  return GenIcon({ "tag": "svg", "attr": { "viewBox": "0 0 512 512" }, "child": [{ "tag": "path", "attr": { "d": "M432,320H400a16,16,0,0,0-16,16V448H64V128H208a16,16,0,0,0,16-16V80a16,16,0,0,0-16-16H48A48,48,0,0,0,0,112V464a48,48,0,0,0,48,48H400a48,48,0,0,0,48-48V336A16,16,0,0,0,432,320ZM488,0h-128c-21.37,0-32.05,25.91-17,41l35.73,35.73L135,320.37a24,24,0,0,0,0,34L157.67,377a24,24,0,0,0,34,0L435.28,133.32,471,169c15,15,41,4.5,41-17V24A24,24,0,0,0,488,0Z" }, "child": [] }] })(props);
 }
 function FaExclamationCircle(props) {
   return GenIcon({ "tag": "svg", "attr": { "viewBox": "0 0 512 512" }, "child": [{ "tag": "path", "attr": { "d": "M504 256c0 136.997-111.043 248-248 248S8 392.997 8 256C8 119.083 119.043 8 256 8s248 111.083 248 248zm-248 50c-25.405 0-46 20.595-46 46s20.595 46 46 46 46-20.595 46-46-20.595-46-46-46zm-43.673-165.346l7.418 136c.347 6.364 5.609 11.346 11.982 11.346h48.546c6.373 0 11.635-4.982 11.982-11.346l7.418-136c.375-6.874-5.098-12.654-11.982-12.654h-63.383c-6.884 0-12.356 5.78-11.981 12.654z" }, "child": [] }] })(props);
@@ -242,6 +245,7 @@ var apiGetRecentLogs = callable("get_recent_logs");
 var apiClearLogs = callable("clear_logs");
 var apiStartGoogleLogin = callable("start_google_login");
 var apiCancelGoogleLogin = callable("cancel_google_login");
+var apiOpenBrowser = callable("open_browser");
 var apiSubmitAuthCode = callable("submit_auth_code");
 var apiSignOutGoogle = callable("sign_out_google");
 var formatTimestamp = (ts) => {
@@ -295,11 +299,8 @@ var Content = () => {
   const [syncTargetId, setSyncTargetId] = (0, import_react3.useState)(null);
   const [loggingIn, setLoggingIn] = (0, import_react3.useState)(false);
   const [authUrl, setAuthUrl] = (0, import_react3.useState)("");
-  const [mobileUrl, setMobileUrl] = (0, import_react3.useState)("");
   const [manualCode, setManualCode] = (0, import_react3.useState)("");
   const [showManualCode, setShowManualCode] = (0, import_react3.useState)(false);
-  const qrTarget = mobileUrl || authUrl;
-  const qrImgUrl = qrTarget ? `https://api.qrserver.com/v1/create-qr-code/?size=190x190&margin=8&data=${encodeURIComponent(qrTarget)}` : "";
   const refreshData = async () => {
     try {
       const [st, sc, lg] = await Promise.all([
@@ -311,12 +312,10 @@ var Content = () => {
         setStatus(st);
         if (st.is_authenticated) {
           setAuthUrl("");
-          setMobileUrl("");
           setLoggingIn(false);
-        } else if (st.is_authenticating && (st.mobile_url || st.auth_url)) {
+        } else if (st.is_authenticating && st.auth_url) {
           setLoggingIn(true);
-          setAuthUrl(st.auth_url || "");
-          setMobileUrl(st.mobile_url || "");
+          setAuthUrl(st.auth_url);
         }
       }
       if (sc.success) {
@@ -342,7 +341,6 @@ var Content = () => {
           setStatus(st);
           setLoggingIn(false);
           setAuthUrl("");
-          setMobileUrl("");
           toaster.toast({
             title: "Google Drive Connected!",
             body: `Signed in as ${st.email}`,
@@ -355,17 +353,39 @@ var Content = () => {
     }, 2e3);
     return () => clearInterval(interval);
   }, [loggingIn]);
+  const launchBrowser = async (url) => {
+    if (!url) return;
+    apiOpenBrowser(url).catch((e) => console.warn("[syncMyShit] apiOpenBrowser failed:", e));
+    try {
+      import_ui.Navigation.NavigateToExternalWeb(url);
+    } catch (e) {
+      console.warn("[syncMyShit] NavigateToExternalWeb failed:", e);
+    }
+    try {
+      import_ui.Navigation.NavigateToSteamWeb(url);
+    } catch (e) {
+      console.warn("[syncMyShit] NavigateToSteamWeb failed:", e);
+    }
+    try {
+      window.open(url, "_blank");
+    } catch (e) {
+    }
+    try {
+      import_ui.Navigation.CloseSideMenus();
+    } catch (e) {
+    }
+  };
   const handleStartGoogleLogin = async () => {
     setLoggingIn(true);
     try {
       const res = await apiStartGoogleLogin();
       if (res.success && res.auth_url) {
         setAuthUrl(res.auth_url);
-        setMobileUrl(res.mobile_url || "");
+        await launchBrowser(res.auth_url);
         toaster.toast({
-          title: "Scan QR Code with Phone",
-          body: "Point your phone camera at the QR code on screen to sign in.",
-          duration: 6e3
+          title: "Browser Opened",
+          body: "Complete sign-in in the browser, then return to Gaming Mode.",
+          duration: 7e3
         });
       } else {
         setLoggingIn(false);
@@ -387,7 +407,6 @@ var Content = () => {
   const handleCancelLogin = async () => {
     setLoggingIn(false);
     setAuthUrl("");
-    setMobileUrl("");
     try {
       await apiCancelGoogleLogin();
     } catch (e) {
@@ -402,8 +421,6 @@ var Content = () => {
         setShowManualCode(false);
         setLoggingIn(false);
         setAuthUrl("");
-        setMobileUrl("");
-        setQrDataUrl("");
         toaster.toast({
           title: "Google Drive Connected!",
           body: `Signed in as ${res.email || "Google Drive User"}`,
@@ -600,90 +617,37 @@ var Content = () => {
           gap: "4px"
         }
       },
-      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", gap: "6px" } }, loggingIn ? /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, /* @__PURE__ */ window.SP_REACT.createElement(FaSyncAlt, { className: "fa-spin", style: { color: "#38bdf8" }, size: 13 }), /* @__PURE__ */ window.SP_REACT.createElement("span", { style: { fontWeight: 700, fontSize: "13px", color: "#38bdf8" } }, "Waiting for Phone Sign-In...")) : /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, /* @__PURE__ */ window.SP_REACT.createElement(FaExclamationCircle, { style: { color: "#ef4444" }, size: 13 }), /* @__PURE__ */ window.SP_REACT.createElement("span", { style: { fontWeight: 700, fontSize: "13px", color: "#ef4444" } }, "Not Connected"))),
-      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { fontSize: "11px", color: "#94a3b8", lineHeight: 1.35 } }, loggingIn ? "Point your phone camera at the QR code below to connect your Google account." : "Sign in with your Google account to sync saves across your Steam Deck and Android handhelds.")
-    )), !loggingIn ? /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
+      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", gap: "6px" } }, loggingIn ? /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, /* @__PURE__ */ window.SP_REACT.createElement(FaSyncAlt, { className: "fa-spin", style: { color: "#38bdf8" }, size: 13 }), /* @__PURE__ */ window.SP_REACT.createElement("span", { style: { fontWeight: 700, fontSize: "13px", color: "#38bdf8" } }, "Waiting for Google Sign-In...")) : /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, /* @__PURE__ */ window.SP_REACT.createElement(FaExclamationCircle, { style: { color: "#ef4444" }, size: 13 }), /* @__PURE__ */ window.SP_REACT.createElement("span", { style: { fontWeight: 700, fontSize: "13px", color: "#ef4444" } }, "Not Connected"))),
+      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { fontSize: "11px", color: "#94a3b8", lineHeight: 1.35 } }, loggingIn ? "Complete authorization in your browser window. Once approved, syncMyShit connects automatically." : "Sign in with your Google account to sync saves across your Steam Deck and Android handhelds.")
+    )), !loggingIn ? /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
       import_ui.ButtonItem,
       {
         layout: "below",
         onClick: handleStartGoogleLogin,
         disabled: loggingIn
       },
-      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaQrcode, { size: 13 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, "Sign In with Phone QR Code"))
-    ))) : /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
-      "div",
+      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaGoogle, { size: 13 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, "Sign In to Google Drive"))
+    )) : /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
+      import_ui.ButtonItem,
       {
-        style: {
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          width: "100%",
-          boxSizing: "border-box",
-          background: "rgba(0, 0, 0, 0.3)",
-          padding: "10px",
-          borderRadius: "8px"
-        }
+        layout: "below",
+        onClick: () => launchBrowser(authUrl)
       },
-      qrImgUrl ? /* @__PURE__ */ window.SP_REACT.createElement(
-        "div",
-        {
-          style: {
-            background: "#ffffff",
-            padding: "6px",
-            borderRadius: "8px",
-            boxShadow: "0 4px 14px rgba(0,0,0,0.6)",
-            display: "inline-block"
-          }
-        },
-        /* @__PURE__ */ window.SP_REACT.createElement(
-          "img",
-          {
-            src: qrImgUrl,
-            width: 190,
-            height: 190,
-            style: { display: "block" },
-            alt: "Scan to sign in with Google"
-          }
-        )
-      ) : /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { fontSize: "12px", color: "#94a3b8", padding: "20px 0" } }, "Starting sign-in server..."),
-      /* @__PURE__ */ window.SP_REACT.createElement(
-        "div",
-        {
-          style: {
-            fontSize: "11px",
-            color: "#cbd5e1",
-            lineHeight: 1.4,
-            textAlign: "center",
-            width: "100%",
-            marginTop: "8px"
-          }
-        },
-        /* @__PURE__ */ window.SP_REACT.createElement("strong", null, "1."),
-        " Scan with phone camera",
-        /* @__PURE__ */ window.SP_REACT.createElement("br", null),
-        /* @__PURE__ */ window.SP_REACT.createElement("strong", null, "2."),
-        " Tap ",
-        /* @__PURE__ */ window.SP_REACT.createElement("em", null, "Sign in with Google"),
-        " on phone",
-        /* @__PURE__ */ window.SP_REACT.createElement("br", null),
-        /* @__PURE__ */ window.SP_REACT.createElement("strong", null, "3."),
-        " Paste callback link & tap Connect!"
-      )
+      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaExternalLinkAlt, { size: 12 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, "\u{1F310} Re-open Browser Window"))
     )), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
       import_ui.ButtonItem,
       {
         layout: "below",
-        onClick: () => copyToClipboard(mobileUrl || authUrl)
+        onClick: () => copyToClipboard(authUrl)
       },
-      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaCopy, { size: 11 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, "\u{1F4CB} Copy Link to Clipboard"))
+      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaCopy, { size: 12 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, "\u{1F4CB} Copy Sign-In Link"))
     )), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
       import_ui.ButtonItem,
       {
         layout: "below",
         onClick: handleCancelLogin
       },
-      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaTimes, { size: 11 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, "Cancel Sign-In"))
+      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaTimes, { size: 12 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, "Cancel Sign-In"))
     ))), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
       import_ui.ButtonItem,
       {
@@ -836,7 +800,7 @@ var Content = () => {
       },
       /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaTrashAlt, { size: 11 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, "Clear Activity Log"))
     ))),
-    /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSection, { title: "Plugin Info" }, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.Field, { label: "Version", description: "syncMyShit Decky Plugin" }, /* @__PURE__ */ window.SP_REACT.createElement("span", { style: { color: "#38bdf8", fontWeight: 700, fontSize: "12px" } }, "v1.0.20"))), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
+    /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSection, { title: "Plugin Info" }, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.Field, { label: "Version", description: "syncMyShit Decky Plugin" }, /* @__PURE__ */ window.SP_REACT.createElement("span", { style: { color: "#38bdf8", fontWeight: 700, fontSize: "12px" } }, "v1.0.21"))), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
       "div",
       {
         style: {
