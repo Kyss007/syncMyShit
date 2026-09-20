@@ -1,7 +1,11 @@
 import * as esbuild from "esbuild";
 import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
-const manifest = JSON.parse(fs.readFileSync("./plugin.json", "utf-8"));
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const manifestPath = path.resolve(__dirname, "plugin.json");
+const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
 
 const deckyPlugin = {
   name: "decky-globals",
@@ -38,9 +42,9 @@ const deckyPlugin = {
 };
 
 await esbuild.build({
-  entryPoints: ["src/index.tsx"],
+  entryPoints: [path.resolve(__dirname, "src/index.tsx")],
   bundle: true,
-  outfile: "dist/index.js",
+  outfile: path.resolve(__dirname, "dist/index.js"),
   format: "esm",
   target: "es2020",
   jsx: "transform",

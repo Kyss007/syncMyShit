@@ -337,3 +337,42 @@ class Plugin:
         """Removes a custom emulator save directory."""
         self.config.remove_custom_path(path)
         return {"success": True, "custom_paths": self.config.get("custom_paths", [])}
+
+    async def update_plugin(self) -> Dict[str, Any]:
+        """Downloads latest release bundle from GitHub and updates this plugin."""
+        import io
+        import tarfile
+        import urllib.request
+
+        def _do_update():
+            url = "https://github.com/Kyss007/syncMyShit/archive/refs/heads/main.tar.gz"
+            req = urllib.request.Request(url, headers={"User-Agent": "syncMyShit-Decky"})
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                tar_bytes = resp.read()
+
+            tar = tarfile.open(fileobj=io.BytesIO(tar_bytes), mode="r:gz")
+            prefix = "syncMyShit-main/decky-plugin/"
+            count = 0
+            for member in tar.getmembers():
+                if member.name.startswith(prefix) and not member.isdir():
+                    rel = member.name[len(prefix):]
+                    dest_file = PLUGIN_DIR / rel
+                    dest_file.parent.mkdir(parents=True, exist_ok=True)
+                    f = tar.extractfile(member)
+                    if f:
+                        with open(dest_file, "wb") as out:
+                            out.write(f.read())
+                        count += 1
+            return count
+
+        loop = asyncio.get_event_loop()
+        try:
+            files_updated = await loop.run_in_executor(None, _do_update)
+            logger.info(f"[syncMyShit] Self-update succeeded ({files_updated} files updated)")
+            return {
+                "success": True,
+                "message": f"Updated {files_updated} files to latest! Please reload Decky or switch tabs.",
+            }
+        except Exception as e:
+            logger.error(f"[syncMyShit] Update failed: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}

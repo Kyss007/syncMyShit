@@ -27,13 +27,24 @@
 
 ---
 
-### 🎮 Steam Deck (Decky Plugin Quick Install)
-In Steam Deck Desktop Mode, open Konsole and run:
-```bash
-curl -sSL https://raw.githubusercontent.com/Kyss007/syncMyShit/main/install-decky.sh | bash
-```
-Then press the `...` button in Gaming Mode to sync saves anytime!
+### 🎮 Steam Deck (Decky Loader Plugin)
+In Steam Deck Desktop Mode, open **Konsole** and run:
 
+- **Install**:
+  ```bash
+  curl -sSL https://raw.githubusercontent.com/Kyss007/syncMyShit/main/install-decky.sh | bash
+  ```
+- **Update**:
+  ```bash
+  curl -sSL https://raw.githubusercontent.com/Kyss007/syncMyShit/main/update-decky.sh | bash
+  ```
+  *(Or tap "⚡ Update Plugin" directly inside the Decky Quick Access Menu!)*
+- **Uninstall**:
+  ```bash
+  curl -sSL https://raw.githubusercontent.com/Kyss007/syncMyShit/main/uninstall-decky.sh | bash
+  ```
+
+Then press the `...` button in Gaming Mode to sync saves anytime!
 
 </div>
 

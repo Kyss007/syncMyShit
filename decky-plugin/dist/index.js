@@ -38,13 +38,13 @@ var require_react = __commonJS({
   }
 });
 
-// src/index.tsx
+// decky-plugin/src/index.tsx
 var import_ui = __toESM(require_ui(), 1);
 
 // decky-manifest:@decky/manifest
 var manifest_default = { "name": "syncMyShit", "author": "Kyss007", "flags": [], "version": "1.0.15", "api_version": 1, "description": "Automagic retro emulator cloud save sync for Steam Deck, Android, & PC", "publish": { "tags": ["cloud", "save", "sync", "emulation", "gaming"], "description": "Automagic retro emulator cloud save sync across Steam Deck, Android, and PC with zero save-loss protection.", "image": "https://raw.githubusercontent.com/Kyss007/syncMyShit/main/docs/banner.png" } };
 
-// node_modules/@decky/api/dist/index.js
+// decky-plugin/node_modules/@decky/api/dist/index.js
 var manifest = manifest_default;
 var API_VERSION = 2;
 if (!manifest?.name) {
@@ -83,13 +83,13 @@ var definePlugin = (fn) => {
   };
 };
 
-// src/index.tsx
+// decky-plugin/src/index.tsx
 var import_react3 = __toESM(require_react(), 1);
 
-// node_modules/react-icons/lib/iconBase.mjs
+// decky-plugin/node_modules/react-icons/lib/iconBase.mjs
 var import_react2 = __toESM(require_react(), 1);
 
-// node_modules/react-icons/lib/iconContext.mjs
+// decky-plugin/node_modules/react-icons/lib/iconContext.mjs
 var import_react = __toESM(require_react(), 1);
 var DefaultContext = {
   color: void 0,
@@ -100,7 +100,7 @@ var DefaultContext = {
 };
 var IconContext = import_react.default.createContext && /* @__PURE__ */ import_react.default.createContext(DefaultContext);
 
-// node_modules/react-icons/lib/iconBase.mjs
+// decky-plugin/node_modules/react-icons/lib/iconBase.mjs
 var _excluded = ["attr", "size", "title"];
 function _objectWithoutProperties(e, t) {
   if (null == e) return {};
@@ -201,7 +201,7 @@ function IconBase(props) {
   return IconContext !== void 0 ? /* @__PURE__ */ import_react2.default.createElement(IconContext.Consumer, null, (conf) => elem(conf)) : elem(DefaultContext);
 }
 
-// node_modules/react-icons/fa/index.mjs
+// decky-plugin/node_modules/react-icons/fa/index.mjs
 function FaTrashAlt(props) {
   return GenIcon({ "tag": "svg", "attr": { "viewBox": "0 0 448 512" }, "child": [{ "tag": "path", "attr": { "d": "M32 464a48 48 0 0 0 48 48h288a48 48 0 0 0 48-48V128H32zm272-256a16 16 0 0 1 32 0v224a16 16 0 0 1-32 0zm-96 0a16 16 0 0 1 32 0v224a16 16 0 0 1-32 0zm-96 0a16 16 0 0 1 32 0v224a16 16 0 0 1-32 0zM432 32H312l-9.4-18.7A24 24 0 0 0 281.1 0H166.8a23.72 23.72 0 0 0-21.4 13.3L136 32H16A16 16 0 0 0 0 48v32a16 16 0 0 0 16 16h416a16 16 0 0 0 16-16V48a16 16 0 0 0-16-16z" }, "child": [] }] })(props);
 }
@@ -217,8 +217,11 @@ function FaFolder(props) {
 function FaCheckCircle(props) {
   return GenIcon({ "tag": "svg", "attr": { "viewBox": "0 0 512 512" }, "child": [{ "tag": "path", "attr": { "d": "M504 256c0 136.967-111.033 248-248 248S8 392.967 8 256 119.033 8 256 8s248 111.033 248 248zM227.314 387.314l184-184c6.248-6.248 6.248-16.379 0-22.627l-22.627-22.627c-6.248-6.249-16.379-6.249-22.628 0L216 308.118l-70.059-70.059c-6.248-6.248-16.379-6.248-22.628 0l-22.627 22.627c-6.248 6.248-6.248 16.379 0 22.627l104 104c6.249 6.249 16.379 6.249 22.628.001z" }, "child": [] }] })(props);
 }
+function FaArrowAltCircleUp(props) {
+  return GenIcon({ "tag": "svg", "attr": { "viewBox": "0 0 512 512" }, "child": [{ "tag": "path", "attr": { "d": "M8 256C8 119 119 8 256 8s248 111 248 248-111 248-248 248S8 393 8 256zm292 116V256h70.9c10.7 0 16.1-13 8.5-20.5L264.5 121.2c-4.7-4.7-12.2-4.7-16.9 0l-115 114.3c-7.6 7.6-2.2 20.5 8.5 20.5H212v116c0 6.6 5.4 12 12 12h64c6.6 0 12-5.4 12-12z" }, "child": [] }] })(props);
+}
 
-// src/index.tsx
+// decky-plugin/src/index.tsx
 var apiGetStatus = callable("get_status");
 var apiScanSaves = callable("scan_saves");
 var apiRunSync = callable("run_sync");
@@ -226,6 +229,7 @@ var apiToggleWatcher = callable("toggle_watcher");
 var apiSetSyncFolder = callable("set_sync_folder");
 var apiGetRecentLogs = callable("get_recent_logs");
 var apiClearLogs = callable("clear_logs");
+var apiUpdatePlugin = callable("update_plugin");
 var formatTimestamp = (ts) => {
   if (!ts || ts <= 0) return "Never";
   const diffSec = Math.floor(Date.now() / 1e3 - ts);
@@ -242,7 +246,7 @@ var Content = () => {
   const [syncing, setSyncing] = (0, import_react3.useState)(false);
   const [syncTargetId, setSyncTargetId] = (0, import_react3.useState)(null);
   const [customFolder, setCustomFolder] = (0, import_react3.useState)("");
-  const [loadingInitial, setLoadingInitial] = (0, import_react3.useState)(true);
+  const [updating, setUpdating] = (0, import_react3.useState)(false);
   const refreshData = async () => {
     try {
       const [st, sc, lg] = await Promise.all([
@@ -263,8 +267,6 @@ var Content = () => {
       }
     } catch (e) {
       console.error("[syncMyShit] Failed to refresh data:", e);
-    } finally {
-      setLoadingInitial(false);
     }
   };
   (0, import_react3.useEffect)(() => {
@@ -374,111 +376,276 @@ var Content = () => {
       console.error(e);
     }
   };
-  return /* @__PURE__ */ window.SP_REACT.createElement("div", null, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSection, { title: "Quick Sync" }, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
-    import_ui.ButtonItem,
-    {
-      layout: "below",
-      onClick: handleFullSync,
-      disabled: syncing
-    },
-    /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaSyncAlt, { className: syncing && syncTargetId === "all" ? "fa-spin" : "" }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, syncing && syncTargetId === "all" ? "Syncing Saves..." : "Sync All Saves Now"))
-  )), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
-    import_ui.Field,
-    {
-      label: "Detected Saves",
-      description: `${totalSaves} save files across ${emulators.length} emulators`
-    },
-    /* @__PURE__ */ window.SP_REACT.createElement("span", { style: { color: "#22c55e", fontWeight: "bold" } }, "Ready")
-  )), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
-    import_ui.Field,
-    {
-      label: "Last Cloud Sync",
-      description: formatTimestamp(status?.last_sync_timestamp || 0)
-    },
-    /* @__PURE__ */ window.SP_REACT.createElement(FaCheckCircle, { style: { color: "#38bdf8" } })
-  )), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
-    import_ui.ToggleField,
-    {
-      label: "Auto-Sync on Game Exit",
-      description: "Automatically uploads saves when an emulator process closes.",
-      checked: status?.auto_sync ?? true,
-      onChange: handleToggleWatcher
+  const handleUpdatePlugin = async () => {
+    setUpdating(true);
+    try {
+      const res = await apiUpdatePlugin();
+      if (res.success) {
+        toaster.toast({
+          title: "syncMyShit Updated!",
+          body: res.message || "Updated to latest version! Please close and reopen QAM.",
+          duration: 6e3
+        });
+        await refreshData();
+      } else {
+        toaster.toast({
+          title: "Update Failed",
+          body: res.error || "Could not complete update.",
+          duration: 5e3
+        });
+      }
+    } catch (err) {
+      toaster.toast({
+        title: "Update Error",
+        body: String(err?.message || err),
+        duration: 5e3
+      });
+    } finally {
+      setUpdating(false);
     }
-  ))), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSection, { title: `Emulators (${emulators.length})` }, emulators.length === 0 ? /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
-    import_ui.Field,
+  };
+  return /* @__PURE__ */ window.SP_REACT.createElement(
+    "div",
     {
-      label: "No Emulators Found",
-      description: "Make sure your emulators or EmuDeck are installed."
-    }
-  )) : emulators.map((emu) => {
-    const isThisSyncing = syncing && syncTargetId === emu.id;
-    return /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, { key: emu.id }, /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", flexDirection: "column", width: "100%", gap: "4px" } }, /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } }, /* @__PURE__ */ window.SP_REACT.createElement("div", null, /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { fontWeight: 600, fontSize: "14px" } }, emu.name), /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { fontSize: "11px", color: "#94a3b8" } }, emu.category, " \u2022 ", emu.save_count, " save", emu.save_count === 1 ? "" : "s")), /* @__PURE__ */ window.SP_REACT.createElement(
+      style: {
+        width: "100%",
+        maxWidth: "100%",
+        boxSizing: "border-box",
+        overflowX: "hidden",
+        padding: "0 2px"
+      }
+    },
+    /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSection, { title: "Quick Sync" }, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
       import_ui.ButtonItem,
       {
-        layout: "inline",
-        onClick: () => handleSingleSync(emu),
+        layout: "below",
+        onClick: handleFullSync,
         disabled: syncing
       },
-      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", gap: "6px" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaSyncAlt, { className: isThisSyncing ? "fa-spin" : "", size: 12 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, isThisSyncing ? "Syncing..." : "Sync"))
-    ))));
-  })), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSection, { title: "Cloud / Sync Folder" }, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
-    import_ui.Field,
-    {
-      label: "Active Folder",
-      description: status?.sync_folder || "None"
-    },
-    /* @__PURE__ */ window.SP_REACT.createElement(FaFolder, { style: { color: "#eab308" } })
-  )), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
-    import_ui.TextField,
-    {
-      label: "Custom Sync Path",
-      value: customFolder,
-      onChange: (e) => setCustomFolder(e.target.value)
-    }
-  )), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
-    import_ui.ButtonItem,
-    {
-      layout: "below",
-      onClick: () => handleApplyFolder(customFolder),
-      disabled: !customFolder || customFolder === status?.sync_folder
-    },
-    "Save Target Path"
-  )), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: "6px", width: "100%", paddingTop: "4px" } }, /* @__PURE__ */ window.SP_REACT.createElement(
-    import_ui.ButtonItem,
-    {
-      layout: "inline",
-      onClick: () => handleApplyFolder("~/GoogleDrive/syncMyShit")
-    },
-    "Google Drive"
-  ), /* @__PURE__ */ window.SP_REACT.createElement(
-    import_ui.ButtonItem,
-    {
-      layout: "inline",
-      onClick: () => handleApplyFolder("~/Syncthing/syncMyShit")
-    },
-    "Syncthing"
-  ), /* @__PURE__ */ window.SP_REACT.createElement(
-    import_ui.ButtonItem,
-    {
-      layout: "inline",
-      onClick: () => handleApplyFolder("~/Nextcloud/syncMyShit")
-    },
-    "Nextcloud"
-  ), /* @__PURE__ */ window.SP_REACT.createElement(
-    import_ui.ButtonItem,
-    {
-      layout: "inline",
-      onClick: () => handleApplyFolder("~/.config/syncMyShit/cloud_sync")
-    },
-    "Default Internal"
-  )))), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSection, { title: "Recent Activity" }, logs.length === 0 ? /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { fontSize: "12px", color: "#94a3b8", padding: "4px 0" } }, "No recent sync activity yet.")) : logs.slice(0, 8).map((entry, idx) => /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, { key: idx }, /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", fontSize: "12px" } }, /* @__PURE__ */ window.SP_REACT.createElement("div", null, /* @__PURE__ */ window.SP_REACT.createElement("span", { style: { color: entry.type === "upload" ? "#4ade80" : "#38bdf8", fontWeight: "bold" } }, "[", entry.type.toUpperCase(), "]"), " ", /* @__PURE__ */ window.SP_REACT.createElement("span", null, entry.emulator, ": ", entry.message)), /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { color: "#64748b", fontSize: "10px", marginLeft: "8px", whiteSpace: "nowrap" } }, entry.time)))), logs.length > 0 && /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
-    import_ui.ButtonItem,
-    {
-      layout: "below",
-      onClick: handleClearLogs
-    },
-    /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaTrashAlt, { size: 12 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, "Clear Activity Log"))
-  ))));
+      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaSyncAlt, { className: syncing && syncTargetId === "all" ? "fa-spin" : "" }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, syncing && syncTargetId === "all" ? "Syncing Saves..." : "Sync All Saves Now"))
+    )), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
+      import_ui.Field,
+      {
+        label: "Detected Saves",
+        description: `${totalSaves} saves (${emulators.length} emulators)`
+      },
+      /* @__PURE__ */ window.SP_REACT.createElement("span", { style: { color: "#22c55e", fontWeight: 700, fontSize: "12px" } }, "Ready")
+    )), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
+      import_ui.Field,
+      {
+        label: "Last Cloud Sync",
+        description: formatTimestamp(status?.last_sync_timestamp || 0)
+      },
+      /* @__PURE__ */ window.SP_REACT.createElement(FaCheckCircle, { style: { color: "#38bdf8" } })
+    )), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
+      import_ui.ToggleField,
+      {
+        label: "Auto-Sync on Game Exit",
+        description: "Uploads saves when emulator closes",
+        checked: status?.auto_sync ?? true,
+        onChange: handleToggleWatcher
+      }
+    ))),
+    /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSection, { title: `Emulators (${emulators.length})` }, emulators.length === 0 ? /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { fontSize: "12px", color: "#94a3b8", padding: "4px 0", textAlign: "center" } }, "No emulator save directories found. Check your EmuDeck or emulator paths.")) : emulators.map((emu) => {
+      const isThisSyncing = syncing && syncTargetId === emu.id;
+      return /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, { key: emu.id }, /* @__PURE__ */ window.SP_REACT.createElement(
+        "div",
+        {
+          style: {
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            width: "100%",
+            maxWidth: "100%",
+            gap: "8px",
+            minWidth: 0,
+            boxSizing: "border-box"
+          }
+        },
+        /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { flex: "1 1 auto", minWidth: 0, overflow: "hidden" } }, /* @__PURE__ */ window.SP_REACT.createElement(
+          "div",
+          {
+            style: {
+              fontWeight: 600,
+              fontSize: "13px",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis"
+            },
+            title: emu.name
+          },
+          emu.name
+        ), /* @__PURE__ */ window.SP_REACT.createElement(
+          "div",
+          {
+            style: {
+              fontSize: "11px",
+              color: "#94a3b8",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis"
+            }
+          },
+          emu.category,
+          " \u2022 ",
+          emu.save_count,
+          " save",
+          emu.save_count === 1 ? "" : "s"
+        )),
+        /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { flex: "0 0 auto" } }, /* @__PURE__ */ window.SP_REACT.createElement(
+          import_ui.ButtonItem,
+          {
+            layout: "inline",
+            onClick: () => handleSingleSync(emu),
+            disabled: syncing
+          },
+          /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", gap: "5px", fontSize: "12px" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaSyncAlt, { className: isThisSyncing ? "fa-spin" : "", size: 11 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, isThisSyncing ? "..." : "Sync"))
+        ))
+      ));
+    })),
+    /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSection, { title: "Cloud / Sync Folder" }, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { width: "100%", maxWidth: "100%", boxSizing: "border-box" } }, /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", fontWeight: 600 } }, /* @__PURE__ */ window.SP_REACT.createElement(FaFolder, { style: { color: "#eab308" }, size: 13 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, "Active Cloud Folder")), /* @__PURE__ */ window.SP_REACT.createElement(
+      "div",
+      {
+        style: {
+          fontSize: "11px",
+          color: "#94a3b8",
+          marginTop: "4px",
+          wordBreak: "break-all",
+          overflowWrap: "anywhere",
+          background: "rgba(0, 0, 0, 0.3)",
+          padding: "6px 8px",
+          borderRadius: "4px",
+          border: "1px solid rgba(255, 255, 255, 0.08)",
+          lineHeight: 1.35
+        }
+      },
+      status?.sync_folder || "None configured"
+    ))), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
+      import_ui.TextField,
+      {
+        label: "Custom Sync Path",
+        value: customFolder,
+        onChange: (e) => setCustomFolder(e.target.value)
+      }
+    )), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
+      import_ui.ButtonItem,
+      {
+        layout: "below",
+        onClick: () => handleApplyFolder(customFolder),
+        disabled: !customFolder || customFolder === status?.sync_folder
+      },
+      "Save Target Path"
+    )), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { width: "100%", maxWidth: "100%", boxSizing: "border-box" } }, /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { fontSize: "11px", color: "#94a3b8", marginBottom: "6px" } }, "Quick Presets:"), /* @__PURE__ */ window.SP_REACT.createElement(
+      "div",
+      {
+        style: {
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: "6px",
+          width: "100%",
+          maxWidth: "100%",
+          boxSizing: "border-box"
+        }
+      },
+      /* @__PURE__ */ window.SP_REACT.createElement(
+        import_ui.ButtonItem,
+        {
+          layout: "below",
+          onClick: () => handleApplyFolder("~/GoogleDrive/syncMyShit")
+        },
+        "Google Drive"
+      ),
+      /* @__PURE__ */ window.SP_REACT.createElement(
+        import_ui.ButtonItem,
+        {
+          layout: "below",
+          onClick: () => handleApplyFolder("~/Syncthing/syncMyShit")
+        },
+        "Syncthing"
+      ),
+      /* @__PURE__ */ window.SP_REACT.createElement(
+        import_ui.ButtonItem,
+        {
+          layout: "below",
+          onClick: () => handleApplyFolder("~/Nextcloud/syncMyShit")
+        },
+        "Nextcloud"
+      ),
+      /* @__PURE__ */ window.SP_REACT.createElement(
+        import_ui.ButtonItem,
+        {
+          layout: "below",
+          onClick: () => handleApplyFolder("~/.config/syncMyShit/cloud_sync")
+        },
+        "Default Local"
+      )
+    )))),
+    /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSection, { title: "Recent Activity" }, logs.length === 0 ? /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { fontSize: "12px", color: "#94a3b8", padding: "4px 0", textAlign: "center", width: "100%" } }, "No recent sync activity yet.")) : logs.slice(0, 8).map((entry, idx) => /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, { key: idx }, /* @__PURE__ */ window.SP_REACT.createElement(
+      "div",
+      {
+        style: {
+          display: "flex",
+          flexDirection: "column",
+          width: "100%",
+          maxWidth: "100%",
+          boxSizing: "border-box",
+          gap: "2px",
+          fontSize: "11px",
+          minWidth: 0,
+          background: "rgba(255, 255, 255, 0.03)",
+          padding: "5px 8px",
+          borderRadius: "4px",
+          borderLeft: `3px solid ${entry.type === "upload" ? "#4ade80" : "#38bdf8"}`
+        }
+      },
+      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", minWidth: 0 } }, /* @__PURE__ */ window.SP_REACT.createElement("span", { style: { color: entry.type === "upload" ? "#4ade80" : "#38bdf8", fontWeight: 700, fontSize: "11px" } }, "[", entry.type.toUpperCase(), "] ", entry.emulator), /* @__PURE__ */ window.SP_REACT.createElement("span", { style: { color: "#64748b", fontSize: "10px", whiteSpace: "nowrap", flexShrink: 0, marginLeft: "6px" } }, entry.time)),
+      /* @__PURE__ */ window.SP_REACT.createElement(
+        "div",
+        {
+          style: {
+            color: "#cbd5e1",
+            fontSize: "11px",
+            overflowWrap: "anywhere",
+            wordBreak: "break-word",
+            lineHeight: 1.3,
+            marginTop: "2px"
+          }
+        },
+        entry.message
+      )
+    ))), logs.length > 0 && /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
+      import_ui.ButtonItem,
+      {
+        layout: "below",
+        onClick: handleClearLogs
+      },
+      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaTrashAlt, { size: 11 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, "Clear Activity Log"))
+    ))),
+    /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSection, { title: "Plugin Management" }, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.Field, { label: "Version", description: "syncMyShit Decky Plugin" }, /* @__PURE__ */ window.SP_REACT.createElement("span", { style: { color: "#38bdf8", fontWeight: 700, fontSize: "12px" } }, "v1.0.15"))), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
+      import_ui.ButtonItem,
+      {
+        layout: "below",
+        onClick: handleUpdatePlugin,
+        disabled: updating
+      },
+      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaArrowAltCircleUp, { className: updating ? "fa-spin" : "", size: 13 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, updating ? "Updating Plugin..." : "\u26A1 Update Plugin to Latest"))
+    )), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
+      "div",
+      {
+        style: {
+          fontSize: "10px",
+          color: "#64748b",
+          lineHeight: 1.4,
+          width: "100%",
+          boxSizing: "border-box",
+          padding: "4px 0"
+        }
+      },
+      "Tip: In Desktop Mode Konsole, you can also run:",
+      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { color: "#94a3b8", fontFamily: "monospace", marginTop: "2px", overflowWrap: "anywhere", wordBreak: "break-all" } }, "curl -sSL .../update-decky.sh | bash"),
+      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { color: "#94a3b8", fontFamily: "monospace", marginTop: "2px", overflowWrap: "anywhere", wordBreak: "break-all" } }, "curl -sSL .../uninstall-decky.sh | bash")
+    )))
+  );
 };
 var index_default = definePlugin(() => {
   return {

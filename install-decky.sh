@@ -10,9 +10,38 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-echo -e "${CYAN}==============================================${NC}"
-echo -e "${CYAN}🎮 syncMyShit - Decky Loader Plugin Installer${NC}"
-echo -e "${CYAN}==============================================${NC}"
+MODE="install"
+for arg in "$@"; do
+    case "$arg" in
+        --uninstall|-u|uninstall)
+            MODE="uninstall"
+            ;;
+        --update|update)
+            MODE="update"
+            ;;
+        --help|-h)
+            echo "Usage: $0 [--update | --uninstall | --help]"
+            echo "  --update     Update syncMyShit Decky plugin to the latest version"
+            echo "  --uninstall  Remove syncMyShit from Decky Loader"
+            echo "  --help       Show this help message"
+            exit 0
+            ;;
+    esac
+done
+
+if [ "$MODE" = "update" ]; then
+    echo -e "${CYAN}==============================================${NC}"
+    echo -e "${CYAN}🔄 syncMyShit - Decky Loader Plugin Updater  ${NC}"
+    echo -e "${CYAN}==============================================${NC}"
+elif [ "$MODE" = "uninstall" ]; then
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${CYAN}🗑️  syncMyShit - Decky Loader Plugin Uninstaller${NC}"
+    echo -e "${CYAN}================================================${NC}"
+else
+    echo -e "${CYAN}==============================================${NC}"
+    echo -e "${CYAN}🎮 syncMyShit - Decky Loader Plugin Installer${NC}"
+    echo -e "${CYAN}==============================================${NC}"
+fi
 
 # 1. Determine Decky plugins directory and target user
 if [ -n "$SUDO_USER" ]; then
@@ -39,7 +68,6 @@ PLUGIN_DEST="$HOMEBREW_DIR/plugins/syncMyShit"
 # Determine if sudo is required to write to HOMEBREW_DIR
 SUDO_CMD=""
 if [ "$EUID" -ne 0 ]; then
-    # Test if target plugins directory or parent is writable
     TEST_DIR="$HOMEBREW_DIR"
     if [ -d "$HOMEBREW_DIR/plugins" ]; then
         TEST_DIR="$HOMEBREW_DIR/plugins"
@@ -50,6 +78,40 @@ if [ "$EUID" -ne 0 ]; then
             echo -e "${YELLOW}Notice: elevated permissions required to write to $HOMEBREW_DIR. Using sudo...${NC}"
         fi
     fi
+fi
+
+# If uninstall mode, remove and reload
+if [ "$MODE" = "uninstall" ]; then
+    if [ -d "$PLUGIN_DEST" ]; then
+        echo -e "${YELLOW}Removing syncMyShit from:${NC} $PLUGIN_DEST"
+        $SUDO_CMD rm -rf "$PLUGIN_DEST"
+        echo -e "${GREEN}✓ Plugin files removed successfully!${NC}"
+    else
+        echo -e "${YELLOW}syncMyShit plugin was not found in $PLUGIN_DEST.${NC}"
+    fi
+
+    CONFIG_DIR="$TARGET_HOME/.config/syncMyShit"
+    if [[ "$*" == *"--purge"* ]]; then
+        if [ -d "$CONFIG_DIR" ]; then
+            echo -e "${YELLOW}Purging configuration directory...${NC}"
+            rm -rf "$CONFIG_DIR"
+            echo -e "${GREEN}✓ Removed $CONFIG_DIR${NC}"
+        fi
+    else
+        if [ -d "$CONFIG_DIR" ]; then
+            echo -e "\n${CYAN}Notice:${NC} Your settings and cloud config in ${CYAN}$CONFIG_DIR${NC} were preserved."
+            echo -e "To delete configuration data as well, run: ${YELLOW}$0 --uninstall --purge${NC}"
+        fi
+    fi
+
+    if systemctl is-active --quiet plugin_loader.service 2>/dev/null; then
+        echo -e "\n${YELLOW}Restarting Decky Loader service to refresh Quick Access Menu...${NC}"
+        sudo systemctl restart plugin_loader.service 2>/dev/null || true
+        echo -e "${GREEN}✓ Decky Loader reloaded!${NC}"
+    fi
+
+    echo -e "\n${GREEN}✓ syncMyShit uninstalled successfully!${NC}\n"
+    exit 0
 fi
 
 $SUDO_CMD mkdir -p "$HOMEBREW_DIR/plugins"
