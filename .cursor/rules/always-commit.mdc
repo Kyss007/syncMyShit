@@ -1,0 +1,14 @@
+---
+description: Always commit and push after finishing substantive work
+alwaysApply: true
+---
+
+# Always commit after work
+
+After completing substantive changes (features, fixes, rewrites, docs that ship with the product):
+
+1. **Commit** with a clear message (why, not just what).
+2. **Push** to `origin` on the current branch unless the user said not to push.
+3. Do this in the same turn as finishing the work — do not leave changes only local.
+
+Exceptions: user explicitly says not to commit/push; changes are secrets/credentials; or there is truly nothing to commit.
