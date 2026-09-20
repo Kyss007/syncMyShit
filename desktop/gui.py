@@ -18,7 +18,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 
 from config import ConfigManager
-from emulator_registry import build_emulator_database, detect_installed_emulators
+from emulator_registry import build_emulator_database, detect_installed_emulators, is_steam_game_path
 from drive_sync import GoogleOAuthManager, GoogleDriveSyncProvider
 from process_monitor import ProcessMonitor
 from sync_engine import SyncEngine
@@ -563,6 +563,13 @@ class SyncMyShitGUI(tk.Tk):
             p = Path(path_str).expanduser().resolve()
             if not p.exists():
                 messagebox.showerror("Error", f"Folder does not exist:\n{p}", parent=dialog)
+                return
+            if is_steam_game_path(p):
+                messagebox.showerror(
+                    "Steam Game Excluded",
+                    f"Selected folder points to a Steam game or Proton prefix:\n{p}\n\nSteam Cloud already manages saves for official Steam games.",
+                    parent=dialog
+                )
                 return
             self.config.add_custom_path(name, str(p))
             self._refresh_emulators()

@@ -14,7 +14,7 @@ from pathlib import Path
 
 from config import ConfigManager
 from drive_sync import GoogleOAuthManager, GoogleDriveSyncProvider
-from emulator_registry import build_emulator_database, detect_installed_emulators
+from emulator_registry import build_emulator_database, detect_installed_emulators, is_steam_game_path
 from process_monitor import ProcessMonitor
 from sync_engine import SyncEngine
 
@@ -93,7 +93,7 @@ def cmd_scan(config: ConfigManager, engine: SyncEngine):
 
     for cp in config.get("custom_paths", []):
         p = Path(cp["path"])
-        if p.exists():
+        if p.exists() and not is_steam_game_path(p):
             files = engine.scan_directory(p, [])
             if files:
                 console.print(f"\n[bold green]{cp['name']}[/bold green] ({len(files)} saves):")
@@ -174,7 +174,7 @@ def cmd_sync(config: ConfigManager, engine: SyncEngine):
 
     for cp in config.get("custom_paths", []):
         p = Path(cp["path"])
-        if p.exists():
+        if p.exists() and not is_steam_game_path(p):
             try:
                 logs = provider.sync_emulator(
                     cp["name"].lower().replace(" ", "_"),
@@ -267,6 +267,9 @@ def cmd_add_path(config: ConfigManager, name: str, path: str):
     p = Path(path).resolve()
     if not p.exists():
         console.print(f"[bold red]Error:[/bold red] Path does not exist: {p}")
+        return
+    if is_steam_game_path(p):
+        console.print(f"[bold red]Error:[/bold red] Cannot add Steam game save path: {p}\nSteam Cloud already synchronizes official Steam game saves automatically.")
         return
     config.add_custom_path(name, str(p))
     console.print(f"[green]✔ Added custom save path:[/green] {name} -> {p}")

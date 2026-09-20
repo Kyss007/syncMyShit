@@ -38,7 +38,7 @@ if decky and hasattr(decky, "logger"):
 
 from config import ConfigManager
 from drive_sync import GoogleOAuthManager, GoogleDriveSyncProvider
-from emulator_registry import detect_installed_emulators, build_emulator_database
+from emulator_registry import detect_installed_emulators, build_emulator_database, is_steam_game_path
 from process_monitor import ProcessMonitor
 from sync_engine import SyncEngine
 
@@ -144,7 +144,7 @@ class Plugin:
         if not emulator_id:
             for cp in self.config.get("custom_paths", []):
                 p = Path(cp["path"])
-                if p.exists():
+                if p.exists() and not is_steam_game_path(p):
                     try:
                         logs = self.provider.sync_emulator(
                             cp["name"].lower().replace(" ", "_"),
@@ -250,7 +250,7 @@ class Plugin:
         for cp in self.config.get("custom_paths", []):
             p = Path(cp["path"])
             cp_saves = []
-            if p.exists():
+            if p.exists() and not is_steam_game_path(p):
                 found = self.engine.scan_directory(p, [])
                 for f in found:
                     cp_saves.append({
