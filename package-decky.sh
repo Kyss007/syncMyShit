@@ -29,6 +29,9 @@ cp "$PLUGIN_DIR/plugin.json" "$DEST/"
 cp "$PLUGIN_DIR/package.json" "$DEST/"
 cp "$PLUGIN_DIR/main.py" "$DEST/"
 cp "$PLUGIN_DIR/README.md" "$DEST/"
+cp "$PLUGIN_DIR/desktop_login.py" "$DEST/"
+cp "$PLUGIN_DIR/login-desktop.sh" "$DEST/"
+chmod +x "$DEST/login-desktop.sh" "$DEST/desktop_login.py"
 cp -r "$PLUGIN_DIR/dist" "$DEST/"
 
 # Copy python modules, skipping __pycache__

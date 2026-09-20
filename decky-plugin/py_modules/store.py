@@ -6,7 +6,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("syncMyShit")
 
@@ -17,20 +17,16 @@ DEFAULTS: Dict[str, Any] = {
 
 
 def _plugin_data_dir() -> Path:
-    """Decky settings live next to the plugin; fall back to ~/.config."""
-    # plugin_loader sets DECKY_PLUGIN_SETTINGS_DIR when available
     env = os.environ.get("DECKY_PLUGIN_SETTINGS_DIR")
     if env:
         p = Path(env)
         p.mkdir(parents=True, exist_ok=True)
         return p
-    # Local/dev fallback
     home = Path.home()
-    candidates = [
+    for c in (
         home / "homebrew" / "settings" / "syncMyShit",
         home / ".config" / "syncMyShit",
-    ]
-    for c in candidates:
+    ):
         try:
             c.mkdir(parents=True, exist_ok=True)
             return c
@@ -39,6 +35,23 @@ def _plugin_data_dir() -> Path:
     p = home / ".syncmyshit"
     p.mkdir(parents=True, exist_ok=True)
     return p
+
+
+def _token_candidates(primary: Path) -> List[Path]:
+    """Desktop login writes ~/.config; Decky may use homebrew/settings — check both."""
+    home = Path.home()
+    seen = set()
+    out: List[Path] = []
+    for p in (
+        primary,
+        home / ".config" / "syncMyShit" / "drive_token.json",
+        home / "homebrew" / "settings" / "syncMyShit" / "drive_token.json",
+    ):
+        key = str(p)
+        if key not in seen:
+            seen.add(key)
+            out.append(p)
+    return out
 
 
 class Store:
@@ -61,9 +74,7 @@ class Store:
 
     def save_config(self) -> None:
         try:
-            self.config_path.write_text(
-                json.dumps(self._config, indent=2), encoding="utf-8"
-            )
+            self.config_path.write_text(json.dumps(self._config, indent=2), encoding="utf-8")
         except Exception as e:
             logger.warning("Failed to save config: %s", e)
 
@@ -75,27 +86,34 @@ class Store:
         self.save_config()
 
     def load_tokens(self) -> Optional[Dict[str, Any]]:
-        if not self.token_path.exists():
-            return None
-        try:
-            data = json.loads(self.token_path.read_text(encoding="utf-8"))
-            return data if isinstance(data, dict) else None
-        except Exception:
-            return None
+        for path in _token_candidates(self.token_path):
+            if not path.exists():
+                continue
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(data, dict) and (data.get("access_token") or data.get("refresh_token")):
+                    return data
+            except Exception:
+                continue
+        return None
 
     def save_tokens(self, tokens: Dict[str, Any]) -> None:
-        self.token_path.write_text(json.dumps(tokens, indent=2), encoding="utf-8")
-        try:
-            os.chmod(self.token_path, 0o600)
-        except Exception:
-            pass
+        raw = json.dumps(tokens, indent=2)
+        for path in _token_candidates(self.token_path):
+            try:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(raw, encoding="utf-8")
+                os.chmod(path, 0o600)
+            except Exception as e:
+                logger.warning("Could not save tokens to %s: %s", path, e)
 
     def clear_tokens(self) -> None:
-        try:
-            if self.token_path.exists():
-                self.token_path.unlink()
-        except Exception:
-            pass
+        for path in _token_candidates(self.token_path):
+            try:
+                if path.exists():
+                    path.unlink()
+            except Exception:
+                pass
         self.set("google_drive_email", "")
 
     def load_activity(self) -> list:
@@ -108,9 +126,7 @@ class Store:
             return []
 
     def save_activity(self, entries: list) -> None:
-        # Keep last 40
-        trimmed = entries[-40:]
-        self.activity_path.write_text(json.dumps(trimmed, indent=2), encoding="utf-8")
+        self.activity_path.write_text(json.dumps(entries[-40:], indent=2), encoding="utf-8")
 
     def append_activity(self, entry: Dict[str, Any]) -> None:
         entries = self.load_activity()

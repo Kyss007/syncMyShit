@@ -43,7 +43,7 @@ In Steam Deck Desktop Mode, open **Konsole** and run:
   curl -sSL https://raw.githubusercontent.com/Kyss007/syncMyShit/main/uninstall-decky.sh | bash
   ```
 
-**Login (Game Mode):** Decky → syncMyShit → **Link Google Drive** → scan the QR with your phone (same Wi‑Fi) → sign in → paste the `http://127.0.0.1…` URL back into the phone page. Deck connects automatically.
+**Login (Desktop Mode):** Open Konsole and run `~/homebrew/plugins/syncMyShit/login-desktop.sh`, finish Google in the browser, then return to Gaming Mode.
 
 </div>
 

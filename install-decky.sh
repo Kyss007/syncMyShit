@@ -135,6 +135,9 @@ if [ -d "$LOCAL_PLUGIN_DIR" ] && [ -f "$LOCAL_PLUGIN_DIR/plugin.json" ]; then
     $SUDO_CMD cp "$LOCAL_PLUGIN_DIR/package.json" "$PLUGIN_DEST/"
     $SUDO_CMD cp "$LOCAL_PLUGIN_DIR/main.py" "$PLUGIN_DEST/"
     $SUDO_CMD cp "$LOCAL_PLUGIN_DIR/README.md" "$PLUGIN_DEST/"
+    $SUDO_CMD cp "$LOCAL_PLUGIN_DIR/desktop_login.py" "$PLUGIN_DEST/"
+    $SUDO_CMD cp "$LOCAL_PLUGIN_DIR/login-desktop.sh" "$PLUGIN_DEST/"
+    $SUDO_CMD chmod +x "$PLUGIN_DEST/login-desktop.sh" "$PLUGIN_DEST/desktop_login.py"
     $SUDO_CMD cp -r "$LOCAL_PLUGIN_DIR/dist" "$PLUGIN_DEST/"
     $SUDO_CMD mkdir -p "$PLUGIN_DEST/py_modules"
     $SUDO_CMD rsync -av --exclude='__pycache__' "$LOCAL_PLUGIN_DIR/py_modules/" "$PLUGIN_DEST/py_modules/"
@@ -167,6 +170,13 @@ else
                 $SUDO_CMD cp "$EXTRACTED_DIR/package.json" "$PLUGIN_DEST/"
                 $SUDO_CMD cp "$EXTRACTED_DIR/main.py" "$PLUGIN_DEST/"
                 $SUDO_CMD cp "$EXTRACTED_DIR/README.md" "$PLUGIN_DEST/"
+                if [ -f "$EXTRACTED_DIR/desktop_login.py" ]; then
+                    $SUDO_CMD cp "$EXTRACTED_DIR/desktop_login.py" "$PLUGIN_DEST/"
+                fi
+                if [ -f "$EXTRACTED_DIR/login-desktop.sh" ]; then
+                    $SUDO_CMD cp "$EXTRACTED_DIR/login-desktop.sh" "$PLUGIN_DEST/"
+                fi
+                $SUDO_CMD chmod +x "$PLUGIN_DEST/login-desktop.sh" "$PLUGIN_DEST/desktop_login.py" 2>/dev/null || true
                 $SUDO_CMD cp -r "$EXTRACTED_DIR/dist" "$PLUGIN_DEST/"
                 $SUDO_CMD mkdir -p "$PLUGIN_DEST/py_modules"
                 $SUDO_CMD cp -r "$EXTRACTED_DIR/py_modules/"* "$PLUGIN_DEST/py_modules/"
@@ -183,6 +193,9 @@ else
     fi
 fi
 
+# Ensure login script is executable after any install path
+$SUDO_CMD chmod +x "$PLUGIN_DEST/login-desktop.sh" "$PLUGIN_DEST/desktop_login.py" 2>/dev/null || true
+
 # Ensure correct permissions and ownership
 $SUDO_CMD chmod -R a+rX "$PLUGIN_DEST"
 if [ -n "$SUDO_CMD" ] || [ "$EUID" -eq 0 ]; then
@@ -193,6 +206,8 @@ fi
 
 echo -e "\n${GREEN}✓ syncMyShit successfully installed to:${NC}"
 echo -e "  ${CYAN}$PLUGIN_DEST${NC}"
+echo -e "\n${CYAN}Sign in (Desktop Mode Konsole):${NC}"
+echo -e "  ${YELLOW}$PLUGIN_DEST/login-desktop.sh${NC}"
 
 # 3. Reload Decky Loader service if possible
 if systemctl is-active --quiet plugin_loader.service 2>/dev/null; then
