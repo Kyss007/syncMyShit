@@ -14,14 +14,45 @@ echo -e "${CYAN}==============================================${NC}"
 echo -e "${CYAN}🎮 syncMyShit - Decky Loader Plugin Installer${NC}"
 echo -e "${CYAN}==============================================${NC}"
 
-# 1. Determine Decky plugins directory
-HOMEBREW_DIR="$HOME/homebrew"
-if [ ! -d "$HOMEBREW_DIR" ] && [ -d "/homebrew" ]; then
+# 1. Determine Decky plugins directory and target user
+if [ -n "$SUDO_USER" ]; then
+    TARGET_USER="$SUDO_USER"
+    TARGET_HOME="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+else
+    TARGET_USER="$(id -un)"
+    TARGET_HOME="$HOME"
+fi
+
+# Detect Decky location
+if [ -d "$TARGET_HOME/homebrew" ]; then
+    HOMEBREW_DIR="$TARGET_HOME/homebrew"
+elif [ -d "/home/deck/homebrew" ]; then
+    HOMEBREW_DIR="/home/deck/homebrew"
+elif [ -d "/homebrew" ]; then
     HOMEBREW_DIR="/homebrew"
+else
+    HOMEBREW_DIR="$TARGET_HOME/homebrew"
 fi
 
 PLUGIN_DEST="$HOMEBREW_DIR/plugins/syncMyShit"
-mkdir -p "$HOMEBREW_DIR/plugins"
+
+# Determine if sudo is required to write to HOMEBREW_DIR
+SUDO_CMD=""
+if [ "$EUID" -ne 0 ]; then
+    # Test if target plugins directory or parent is writable
+    TEST_DIR="$HOMEBREW_DIR"
+    if [ -d "$HOMEBREW_DIR/plugins" ]; then
+        TEST_DIR="$HOMEBREW_DIR/plugins"
+    fi
+    if [ ! -w "$TEST_DIR" ] && [ -e "$TEST_DIR" ]; then
+        if command -v sudo >/dev/null 2>&1; then
+            SUDO_CMD="sudo"
+            echo -e "${YELLOW}Notice: elevated permissions required to write to $HOMEBREW_DIR. Using sudo...${NC}"
+        fi
+    fi
+fi
+
+$SUDO_CMD mkdir -p "$HOMEBREW_DIR/plugins"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOCAL_PLUGIN_DIR="$SCRIPT_DIR/decky-plugin"
@@ -36,15 +67,15 @@ if [ -d "$LOCAL_PLUGIN_DIR" ] && [ -f "$LOCAL_PLUGIN_DIR/plugin.json" ]; then
         (cd "$LOCAL_PLUGIN_DIR" && npm install --silent && node build.mjs)
     fi
 
-    rm -rf "$PLUGIN_DEST"
-    mkdir -p "$PLUGIN_DEST"
-    cp "$LOCAL_PLUGIN_DIR/plugin.json" "$PLUGIN_DEST/"
-    cp "$LOCAL_PLUGIN_DIR/package.json" "$PLUGIN_DEST/"
-    cp "$LOCAL_PLUGIN_DIR/main.py" "$PLUGIN_DEST/"
-    cp "$LOCAL_PLUGIN_DIR/README.md" "$PLUGIN_DEST/"
-    cp -r "$LOCAL_PLUGIN_DIR/dist" "$PLUGIN_DEST/"
-    mkdir -p "$PLUGIN_DEST/py_modules"
-    rsync -av --exclude='__pycache__' "$LOCAL_PLUGIN_DIR/py_modules/" "$PLUGIN_DEST/py_modules/"
+    $SUDO_CMD rm -rf "$PLUGIN_DEST"
+    $SUDO_CMD mkdir -p "$PLUGIN_DEST"
+    $SUDO_CMD cp "$LOCAL_PLUGIN_DIR/plugin.json" "$PLUGIN_DEST/"
+    $SUDO_CMD cp "$LOCAL_PLUGIN_DIR/package.json" "$PLUGIN_DEST/"
+    $SUDO_CMD cp "$LOCAL_PLUGIN_DIR/main.py" "$PLUGIN_DEST/"
+    $SUDO_CMD cp "$LOCAL_PLUGIN_DIR/README.md" "$PLUGIN_DEST/"
+    $SUDO_CMD cp -r "$LOCAL_PLUGIN_DIR/dist" "$PLUGIN_DEST/"
+    $SUDO_CMD mkdir -p "$PLUGIN_DEST/py_modules"
+    $SUDO_CMD rsync -av --exclude='__pycache__' "$LOCAL_PLUGIN_DIR/py_modules/" "$PLUGIN_DEST/py_modules/"
 else
     echo -e "${CYAN}Downloading latest syncMyShit Decky release from GitHub...${NC}"
     TMP_DIR=$(mktemp -d)
@@ -56,14 +87,19 @@ else
         exit 1
     }
 
-    rm -rf "$PLUGIN_DEST"
-    mkdir -p "$PLUGIN_DEST"
-    unzip -q "$TMP_DIR/syncMyShit-decky.zip" -d "$HOMEBREW_DIR/plugins/"
+    $SUDO_CMD rm -rf "$PLUGIN_DEST"
+    $SUDO_CMD mkdir -p "$PLUGIN_DEST"
+    $SUDO_CMD unzip -q "$TMP_DIR/syncMyShit-decky.zip" -d "$HOMEBREW_DIR/plugins/"
     rm -rf "$TMP_DIR"
 fi
 
-# Ensure correct permissions
-chmod -R u+rwX "$PLUGIN_DEST"
+# Ensure correct permissions and ownership
+$SUDO_CMD chmod -R a+rX "$PLUGIN_DEST"
+if [ -n "$SUDO_CMD" ] || [ "$EUID" -eq 0 ]; then
+    # Keep ownership consistent with parent directory
+    PARENT_OWNER=$(stat -c '%u:%g' "$HOMEBREW_DIR/plugins" 2>/dev/null || echo "root:root")
+    $SUDO_CMD chown -R "$PARENT_OWNER" "$PLUGIN_DEST" 2>/dev/null || true
+fi
 
 echo -e "\n${GREEN}✓ syncMyShit successfully installed to:${NC}"
 echo -e "  ${CYAN}$PLUGIN_DEST${NC}"
