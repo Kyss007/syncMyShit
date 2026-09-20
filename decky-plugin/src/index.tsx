@@ -11,18 +11,22 @@ import { callable, definePlugin, toaster } from "@decky/api";
 import { useEffect, useState, FC } from "react";
 import {
   FaCheckCircle,
-  FaFolder,
+  FaExclamationCircle,
+  FaGoogle,
   FaGamepad,
   FaSyncAlt,
   FaTrashAlt,
   FaArrowAltCircleUp,
+  FaSignOutAlt,
+  FaKey,
 } from "react-icons/fa";
 
 // RPC method typings
 interface StatusResponse {
   success: boolean;
-  sync_folder: string;
-  sync_mode: string;
+  is_authenticated: boolean;
+  email: string;
+  drive_folder: string;
   auto_sync: boolean;
   is_monitoring: boolean;
   last_sync_timestamp: number;
@@ -85,10 +89,12 @@ const apiGetStatus = callable<[], StatusResponse>("get_status");
 const apiScanSaves = callable<[], ScanResponse>("scan_saves");
 const apiRunSync = callable<[emulatorId?: string], SyncResponse>("run_sync");
 const apiToggleWatcher = callable<[enabled: boolean], { success: boolean; auto_sync: boolean }>("toggle_watcher");
-const apiSetSyncFolder = callable<[path: string], { success: boolean; sync_folder?: string; error?: string }>("set_sync_folder");
 const apiGetRecentLogs = callable<[], LogsResponse>("get_recent_logs");
 const apiClearLogs = callable<[], { success: boolean }>("clear_logs");
 const apiUpdatePlugin = callable<[], UpdateResponse>("update_plugin");
+const apiStartGoogleLogin = callable<[], { success: boolean; auth_url?: string; error?: string }>("start_google_login");
+const apiSubmitAuthCode = callable<[code: string], { success: boolean; email?: string; error?: string }>("submit_auth_code");
+const apiSignOutGoogle = callable<[], { success: boolean }>("sign_out_google");
 
 const formatTimestamp = (ts: number): string => {
   if (!ts || ts <= 0) return "Never";
@@ -106,8 +112,11 @@ const Content: FC = () => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [syncing, setSyncing] = useState<boolean>(false);
   const [syncTargetId, setSyncTargetId] = useState<string | null>(null);
-  const [customFolder, setCustomFolder] = useState<string>("");
   const [updating, setUpdating] = useState<boolean>(false);
+  const [loggingIn, setLoggingIn] = useState<boolean>(false);
+  const [authUrl, setAuthUrl] = useState<string>("");
+  const [manualCode, setManualCode] = useState<string>("");
+  const [showManualCode, setShowManualCode] = useState<boolean>(false);
 
   // Load status and emulator scans
   const refreshData = async () => {
@@ -119,7 +128,10 @@ const Content: FC = () => {
       ]);
       if (st.success) {
         setStatus(st);
-        setCustomFolder(st.sync_folder);
+        if (st.is_authenticated) {
+          setAuthUrl("");
+          setLoggingIn(false);
+        }
       }
       if (sc.success) {
         setEmulators(sc.emulators);
@@ -137,21 +149,134 @@ const Content: FC = () => {
     refreshData();
   }, []);
 
+  // Poll status while waiting for Google OAuth browser sign-in
+  useEffect(() => {
+    if (!loggingIn) return;
+    const interval = setInterval(async () => {
+      try {
+        const st = await apiGetStatus();
+        if (st.success && st.is_authenticated) {
+          setStatus(st);
+          setLoggingIn(false);
+          setAuthUrl("");
+          toaster.toast({
+            title: "Google Drive Connected!",
+            body: `Signed in as ${st.email}`,
+            duration: 4500,
+          });
+          await refreshData();
+        }
+      } catch (e) {
+        // ignore poll errors
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [loggingIn]);
+
+  // Start Google Drive OAuth Login
+  const handleStartGoogleLogin = async () => {
+    setLoggingIn(true);
+    try {
+      const res = await apiStartGoogleLogin();
+      if (res.success && res.auth_url) {
+        setAuthUrl(res.auth_url);
+        toaster.toast({
+          title: "Google Sign-In Started",
+          body: "Complete sign-in in the opened browser window.",
+          duration: 5000,
+        });
+      } else {
+        setLoggingIn(false);
+        toaster.toast({
+          title: "Sign-In Error",
+          body: res.error || "Failed to start Google authentication",
+          duration: 5000,
+        });
+      }
+    } catch (err: any) {
+      setLoggingIn(false);
+      toaster.toast({
+        title: "Sign-In Error",
+        body: String(err?.message || err),
+        duration: 5000,
+      });
+    }
+  };
+
+  // Submit manual authorization code / URL
+  const handleSubmitManualCode = async () => {
+    if (!manualCode.trim()) return;
+    try {
+      const res = await apiSubmitAuthCode(manualCode.trim());
+      if (res.success) {
+        setManualCode("");
+        setShowManualCode(false);
+        setLoggingIn(false);
+        setAuthUrl("");
+        toaster.toast({
+          title: "Google Drive Connected!",
+          body: `Signed in as ${res.email || "Google Drive User"}`,
+          duration: 4500,
+        });
+        await refreshData();
+      } else {
+        toaster.toast({
+          title: "Authorization Error",
+          body: res.error || "Invalid code or failed to exchange token",
+          duration: 5000,
+        });
+      }
+    } catch (err: any) {
+      toaster.toast({
+        title: "Authorization Error",
+        body: String(err?.message || err),
+        duration: 5000,
+      });
+    }
+  };
+
+  // Sign out of Google Drive
+  const handleSignOut = async () => {
+    try {
+      await apiSignOutGoogle();
+      toaster.toast({
+        title: "Google Drive Disconnected",
+        body: "You have signed out of Google Drive.",
+        duration: 3500,
+      });
+      await refreshData();
+    } catch (err: any) {
+      toaster.toast({
+        title: "Sign-Out Error",
+        body: String(err?.message || err),
+        duration: 4000,
+      });
+    }
+  };
+
   // Run full sync
   const handleFullSync = async () => {
+    if (!status?.is_authenticated) {
+      toaster.toast({
+        title: "Google Drive Required",
+        body: "Please connect Google Drive first.",
+        duration: 4000,
+      });
+      return;
+    }
     setSyncing(true);
     setSyncTargetId("all");
     try {
       const res = await apiRunSync();
       toaster.toast({
-        title: "syncMyShit",
+        title: "Google Drive Sync",
         body: res.message || "Save synchronization complete!",
         duration: 4000,
       });
       await refreshData();
     } catch (err: any) {
       toaster.toast({
-        title: "syncMyShit Error",
+        title: "Sync Error",
         body: String(err?.message || err),
         duration: 5000,
       });
@@ -163,13 +288,21 @@ const Content: FC = () => {
 
   // Run sync for a single emulator
   const handleSingleSync = async (emu: EmulatorItem) => {
+    if (!status?.is_authenticated) {
+      toaster.toast({
+        title: "Google Drive Required",
+        body: "Please connect Google Drive first.",
+        duration: 4000,
+      });
+      return;
+    }
     setSyncing(true);
     setSyncTargetId(emu.id);
     try {
       const res = await apiRunSync(emu.id);
       toaster.toast({
-        title: `syncMyShit: ${emu.name}`,
-        body: res.message || `Synchronized ${emu.name} saves`,
+        title: `Drive Sync: ${emu.name}`,
+        body: res.message || `Synchronized ${emu.name} with Google Drive`,
         duration: 3500,
       });
       await refreshData();
@@ -194,7 +327,7 @@ const Content: FC = () => {
         toaster.toast({
           title: "Auto-Sync Watcher",
           body: enabled
-            ? "Auto-sync enabled (syncs on game exit)"
+            ? "Auto-sync enabled (syncs to Drive on game exit)"
             : "Auto-sync paused",
           duration: 3000,
         });
@@ -202,36 +335,6 @@ const Content: FC = () => {
     } catch (e: any) {
       toaster.toast({
         title: "Watcher Error",
-        body: String(e),
-        duration: 4000,
-      });
-    }
-  };
-
-  // Apply custom sync folder
-  const handleApplyFolder = async (path: string) => {
-    if (!path.trim()) return;
-    try {
-      const res = await apiSetSyncFolder(path.trim());
-      if (res.success && res.sync_folder) {
-        setCustomFolder(res.sync_folder);
-        if (status) setStatus({ ...status, sync_folder: res.sync_folder });
-        toaster.toast({
-          title: "Sync Target Updated",
-          body: `Now syncing to: ${res.sync_folder}`,
-          duration: 3500,
-        });
-        await refreshData();
-      } else {
-        toaster.toast({
-          title: "Folder Error",
-          body: res.error || "Could not set folder",
-          duration: 4000,
-        });
-      }
-    } catch (e: any) {
-      toaster.toast({
-        title: "Folder Error",
         body: String(e),
         duration: 4000,
       });
@@ -253,7 +356,7 @@ const Content: FC = () => {
     }
   };
 
-  // Update plugin from GitHub directly inside Decky
+  // Update plugin from GitHub
   const handleUpdatePlugin = async () => {
     setUpdating(true);
     try {
@@ -261,7 +364,7 @@ const Content: FC = () => {
       if (res.success) {
         toaster.toast({
           title: "syncMyShit Updated!",
-          body: res.message || "Updated to latest version! Please close and reopen QAM.",
+          body: res.message || "Updated to latest version! Reopen QAM to apply.",
           duration: 6000,
         });
         await refreshData();
@@ -293,17 +396,178 @@ const Content: FC = () => {
         padding: "0 2px",
       }}
     >
-      {/* Overview & Quick Sync */}
+      {/* Google Drive Account Section */}
+      <PanelSection title="Google Drive Cloud">
+        {status?.is_authenticated ? (
+          <>
+            <PanelSectionRow>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  width: "100%",
+                  maxWidth: "100%",
+                  boxSizing: "border-box",
+                  background: "rgba(34, 197, 94, 0.1)",
+                  border: "1px solid rgba(34, 197, 94, 0.3)",
+                  borderRadius: "6px",
+                  padding: "8px 10px",
+                  gap: "4px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <FaCheckCircle style={{ color: "#22c55e" }} size={13} />
+                  <span style={{ fontWeight: 700, fontSize: "13px", color: "#22c55e" }}>
+                    Connected to Google Drive
+                  </span>
+                </div>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: "#f8fafc",
+                    fontWeight: 600,
+                    overflowWrap: "anywhere",
+                    wordBreak: "break-all",
+                    marginTop: "2px",
+                  }}
+                >
+                  {status.email || "Google Account"}
+                </div>
+                <div style={{ fontSize: "11px", color: "#94a3b8" }}>
+                  Drive Folder: <span style={{ color: "#38bdf8", fontWeight: 600 }}>syncMyShit/</span>
+                </div>
+              </div>
+            </PanelSectionRow>
+
+            <PanelSectionRow>
+              <ButtonItem
+                layout="below"
+                onClick={handleSignOut}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+                  <FaSignOutAlt size={12} />
+                  <span>Disconnect Google Account</span>
+                </div>
+              </ButtonItem>
+            </PanelSectionRow>
+          </>
+        ) : (
+          <>
+            <PanelSectionRow>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  width: "100%",
+                  maxWidth: "100%",
+                  boxSizing: "border-box",
+                  background: "rgba(239, 68, 68, 0.1)",
+                  border: "1px solid rgba(239, 68, 68, 0.3)",
+                  borderRadius: "6px",
+                  padding: "8px 10px",
+                  gap: "4px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <FaExclamationCircle style={{ color: "#ef4444" }} size={13} />
+                  <span style={{ fontWeight: 700, fontSize: "13px", color: "#ef4444" }}>
+                    Not Connected
+                  </span>
+                </div>
+                <div style={{ fontSize: "11px", color: "#94a3b8", lineHeight: 1.35 }}>
+                  Sign in with your Google account to sync saves across your Steam Deck and Android handhelds.
+                </div>
+              </div>
+            </PanelSectionRow>
+
+            <PanelSectionRow>
+              <ButtonItem
+                layout="below"
+                onClick={handleStartGoogleLogin}
+                disabled={loggingIn}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" }}>
+                  <FaGoogle size={13} />
+                  <span>{loggingIn ? "Waiting for Sign-In..." : "Sign In to Google Drive"}</span>
+                </div>
+              </ButtonItem>
+            </PanelSectionRow>
+
+            {loggingIn && authUrl && (
+              <PanelSectionRow>
+                <div
+                  style={{
+                    fontSize: "11px",
+                    color: "#94a3b8",
+                    lineHeight: 1.35,
+                    width: "100%",
+                    boxSizing: "border-box",
+                    background: "rgba(0, 0, 0, 0.25)",
+                    padding: "6px 8px",
+                    borderRadius: "4px",
+                  }}
+                >
+                  <div style={{ color: "#38bdf8", fontWeight: 600, marginBottom: "2px" }}>
+                    Authorization In Progress
+                  </div>
+                  Complete the sign-in prompt in your browser window. Once approved, syncMyShit will connect automatically.
+                </div>
+              </PanelSectionRow>
+            )}
+
+            <PanelSectionRow>
+              <ButtonItem
+                layout="below"
+                onClick={() => setShowManualCode(!showManualCode)}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+                  <FaKey size={11} />
+                  <span>{showManualCode ? "Hide Manual Input" : "Paste Authorization Code Manually"}</span>
+                </div>
+              </ButtonItem>
+            </PanelSectionRow>
+
+            {showManualCode && (
+              <>
+                <PanelSectionRow>
+                  <TextField
+                    label="Authorization Code / URL"
+                    value={manualCode}
+                    onChange={(e) => setManualCode(e.target.value)}
+                  />
+                </PanelSectionRow>
+                <PanelSectionRow>
+                  <ButtonItem
+                    layout="below"
+                    onClick={handleSubmitManualCode}
+                    disabled={!manualCode.trim()}
+                  >
+                    Submit Code
+                  </ButtonItem>
+                </PanelSectionRow>
+              </>
+            )}
+          </>
+        )}
+      </PanelSection>
+
+      {/* Quick Sync Section */}
       <PanelSection title="Quick Sync">
         <PanelSectionRow>
           <ButtonItem
             layout="below"
             onClick={handleFullSync}
-            disabled={syncing}
+            disabled={syncing || !status?.is_authenticated}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" }}>
               <FaSyncAlt className={syncing && syncTargetId === "all" ? "fa-spin" : ""} />
-              <span>{syncing && syncTargetId === "all" ? "Syncing Saves..." : "Sync All Saves Now"}</span>
+              <span>
+                {syncing && syncTargetId === "all"
+                  ? "Syncing to Drive..."
+                  : !status?.is_authenticated
+                  ? "Sign in to Sync Saves"
+                  : "⚡ Sync All Saves Now"}
+              </span>
             </div>
           </ButtonItem>
         </PanelSectionRow>
@@ -319,17 +583,17 @@ const Content: FC = () => {
 
         <PanelSectionRow>
           <Field
-            label="Last Cloud Sync"
+            label="Last Drive Sync"
             description={formatTimestamp(status?.last_sync_timestamp || 0)}
           >
-            <FaCheckCircle style={{ color: "#38bdf8" }} />
+            <FaCheckCircle style={{ color: status?.last_sync_timestamp ? "#38bdf8" : "#64748b" }} />
           </Field>
         </PanelSectionRow>
 
         <PanelSectionRow>
           <ToggleField
             label="Auto-Sync on Game Exit"
-            description="Uploads saves when emulator closes"
+            description="Uploads saves to Google Drive when emulator closes"
             checked={status?.auto_sync ?? true}
             onChange={handleToggleWatcher}
           />
@@ -340,8 +604,8 @@ const Content: FC = () => {
       <PanelSection title={`Emulators (${emulators.length})`}>
         {emulators.length === 0 ? (
           <PanelSectionRow>
-            <div style={{ fontSize: "12px", color: "#94a3b8", padding: "4px 0", textAlign: "center" }}>
-              No emulator save directories found. Check your EmuDeck or emulator paths.
+            <div style={{ fontSize: "12px", color: "#94a3b8", padding: "4px 0", textAlign: "center", width: "100%" }}>
+              No emulator save directories found. Check your EmuDeck or emulator installation.
             </div>
           </PanelSectionRow>
         ) : (
@@ -390,7 +654,7 @@ const Content: FC = () => {
                     <ButtonItem
                       layout="inline"
                       onClick={() => handleSingleSync(emu)}
-                      disabled={syncing}
+                      disabled={syncing || !status?.is_authenticated}
                     >
                       <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "12px" }}>
                         <FaSyncAlt className={isThisSyncing ? "fa-spin" : ""} size={11} />
@@ -403,95 +667,6 @@ const Content: FC = () => {
             );
           })
         )}
-      </PanelSection>
-
-      {/* Cloud Target Configuration */}
-      <PanelSection title="Cloud / Sync Folder">
-        <PanelSectionRow>
-          <div style={{ width: "100%", maxWidth: "100%", boxSizing: "border-box" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", fontWeight: 600 }}>
-              <FaFolder style={{ color: "#eab308" }} size={13} />
-              <span>Active Cloud Folder</span>
-            </div>
-            <div
-              style={{
-                fontSize: "11px",
-                color: "#94a3b8",
-                marginTop: "4px",
-                wordBreak: "break-all",
-                overflowWrap: "anywhere",
-                background: "rgba(0, 0, 0, 0.3)",
-                padding: "6px 8px",
-                borderRadius: "4px",
-                border: "1px solid rgba(255, 255, 255, 0.08)",
-                lineHeight: 1.35,
-              }}
-            >
-              {status?.sync_folder || "None configured"}
-            </div>
-          </div>
-        </PanelSectionRow>
-
-        <PanelSectionRow>
-          <TextField
-            label="Custom Sync Path"
-            value={customFolder}
-            onChange={(e) => setCustomFolder(e.target.value)}
-          />
-        </PanelSectionRow>
-
-        <PanelSectionRow>
-          <ButtonItem
-            layout="below"
-            onClick={() => handleApplyFolder(customFolder)}
-            disabled={!customFolder || customFolder === status?.sync_folder}
-          >
-            Save Target Path
-          </ButtonItem>
-        </PanelSectionRow>
-
-        <PanelSectionRow>
-          <div style={{ width: "100%", maxWidth: "100%", boxSizing: "border-box" }}>
-            <div style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "6px" }}>
-              Quick Presets:
-            </div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "6px",
-                width: "100%",
-                maxWidth: "100%",
-                boxSizing: "border-box",
-              }}
-            >
-              <ButtonItem
-                layout="below"
-                onClick={() => handleApplyFolder("~/GoogleDrive/syncMyShit")}
-              >
-                Google Drive
-              </ButtonItem>
-              <ButtonItem
-                layout="below"
-                onClick={() => handleApplyFolder("~/Syncthing/syncMyShit")}
-              >
-                Syncthing
-              </ButtonItem>
-              <ButtonItem
-                layout="below"
-                onClick={() => handleApplyFolder("~/Nextcloud/syncMyShit")}
-              >
-                Nextcloud
-              </ButtonItem>
-              <ButtonItem
-                layout="below"
-                onClick={() => handleApplyFolder("~/.config/syncMyShit/cloud_sync")}
-              >
-                Default Local
-              </ButtonItem>
-            </div>
-          </div>
-        </PanelSectionRow>
       </PanelSection>
 
       {/* Recent Activity Log */}
@@ -593,7 +768,7 @@ const Content: FC = () => {
               padding: "4px 0",
             }}
           >
-            Tip: In Desktop Mode Konsole, you can also run:
+            Commands in Desktop Mode (Konsole):
             <div style={{ color: "#94a3b8", fontFamily: "monospace", marginTop: "2px", overflowWrap: "anywhere", wordBreak: "break-all" }}>
               curl -sSL .../update-decky.sh | bash
             </div>

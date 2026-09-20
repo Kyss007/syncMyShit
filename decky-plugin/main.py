@@ -37,7 +37,7 @@ if decky and hasattr(decky, "logger"):
     logger = decky.logger
 
 from config import ConfigManager
-from drive_sync import FolderSyncProvider, detect_default_cloud_folder
+from drive_sync import GoogleOAuthManager, GoogleDriveSyncProvider
 from emulator_registry import detect_installed_emulators, build_emulator_database
 from process_monitor import ProcessMonitor
 from sync_engine import SyncEngine
@@ -52,29 +52,12 @@ class Plugin:
     def __init__(self):
         self.config = ConfigManager()
         self.engine = SyncEngine(keep_backups=self.config.get("keep_backups_count", 5))
+        self.oauth_mgr = GoogleOAuthManager(self.config)
+        self.provider = GoogleDriveSyncProvider(self.oauth_mgr, self.engine)
         self.recent_logs: List[Dict[str, Any]] = []
         self._monitor: Optional[ProcessMonitor] = None
         self._monitor_thread: Optional[threading.Thread] = None
         self.loop: Optional[asyncio.AbstractEventLoop] = None
-
-    def _get_active_sync_folder(self) -> Path:
-        f = self.config.get("local_sync_folder")
-        if f:
-            expanded = Path(os.path.expanduser(f))
-            if expanded.exists():
-                return expanded
-
-        detected = detect_default_cloud_folder()
-        if detected:
-            self.config.set("local_sync_folder", str(detected))
-            self.config.set("sync_mode", "local_folder")
-            return detected
-
-        default_dir = Path.home() / ".config" / "syncMyShit" / "cloud_sync"
-        default_dir.mkdir(parents=True, exist_ok=True)
-        self.config.set("local_sync_folder", str(default_dir))
-        self.config.set("sync_mode", "local_folder")
-        return default_dir
 
     def _start_monitor(self):
         if self._monitor and self._monitor._running:
@@ -116,12 +99,19 @@ class Plugin:
         logger.info("[syncMyShit] Process monitor stopped")
 
     def _execute_sync(self, emulator_id: Optional[str] = None, trigger: str = "manual") -> Dict[str, Any]:
-        sync_folder = self._get_active_sync_folder()
-        provider = FolderSyncProvider(sync_folder, self.engine)
+        if not self.oauth_mgr.is_authenticated():
+            logger.warning("[syncMyShit] Sync skipped: Not authenticated with Google Drive")
+            return {
+                "success": False,
+                "operations_count": 0,
+                "logs": ["Google Drive is not connected. Please tap 'Sign In to Google Drive'."],
+                "message": "Not connected to Google Drive. Please Sign In first.",
+                "timestamp": int(time.time()),
+            }
+
         detected = detect_installed_emulators()
         ops_count = 0
         sync_logs: List[str] = []
-
         now_str = time.strftime("%H:%M:%S")
 
         for emu in detected:
@@ -129,52 +119,59 @@ class Plugin:
                 continue
 
             paths = [Path(p) for p in emu["paths"]]
-            logs = provider.sync_emulator(
-                emu["id"],
-                paths,
-                emu["extensions"],
-                drive_folder=emu.get("drive_folder")
-            )
-            for raw_log in logs:
-                clean = strip_rich_tags(raw_log)
-                sync_logs.append(f"{emu['name']}: {clean}")
-                self.recent_logs.append({
-                    "time": now_str,
-                    "emulator": emu["name"],
-                    "message": clean,
-                    "type": "upload" if "Uploaded" in raw_log or "Updated cloud" in raw_log else "download"
-                })
-                ops_count += 1
+            try:
+                logs = self.provider.sync_emulator(
+                    emu["id"],
+                    paths,
+                    emu["extensions"],
+                    drive_folder=emu.get("drive_folder")
+                )
+                for raw_log in logs:
+                    clean = strip_rich_tags(raw_log)
+                    sync_logs.append(f"{emu['name']}: {clean}")
+                    self.recent_logs.append({
+                        "time": now_str,
+                        "emulator": emu["name"],
+                        "message": clean,
+                        "type": "upload" if "Uploaded" in raw_log else "download"
+                    })
+                    ops_count += 1
+            except Exception as e:
+                logger.error(f"[syncMyShit] Error syncing {emu['name']}: {e}", exc_info=True)
+                sync_logs.append(f"Error ({emu['name']}): {e}")
 
         # Also sync custom paths if doing full sync
         if not emulator_id:
             for cp in self.config.get("custom_paths", []):
                 p = Path(cp["path"])
                 if p.exists():
-                    logs = provider.sync_emulator(
-                        cp["name"].lower().replace(" ", "_"),
-                        [p],
-                        [],
-                        drive_folder=cp["name"]
-                    )
-                    for raw_log in logs:
-                        clean = strip_rich_tags(raw_log)
-                        sync_logs.append(f"{cp['name']}: {clean}")
-                        self.recent_logs.append({
-                            "time": now_str,
-                            "emulator": cp["name"],
-                            "message": clean,
-                            "type": "upload" if "Uploaded" in raw_log or "Updated cloud" in raw_log else "download"
-                        })
-                        ops_count += 1
+                    try:
+                        logs = self.provider.sync_emulator(
+                            cp["name"].lower().replace(" ", "_"),
+                            [p],
+                            [],
+                            drive_folder=cp["name"]
+                        )
+                        for raw_log in logs:
+                            clean = strip_rich_tags(raw_log)
+                            sync_logs.append(f"{cp['name']}: {clean}")
+                            self.recent_logs.append({
+                                "time": now_str,
+                                "emulator": cp["name"],
+                                "message": clean,
+                                "type": "upload" if "Uploaded" in raw_log else "download"
+                            })
+                            ops_count += 1
+                    except Exception as e:
+                        logger.error(f"[syncMyShit] Error syncing custom path {cp['name']}: {e}", exc_info=True)
+                        sync_logs.append(f"Error ({cp['name']}): {e}")
 
         self.config.set("last_sync_timestamp", int(time.time()))
 
-        # Keep max 100 recent logs
         if len(self.recent_logs) > 100:
             self.recent_logs = self.recent_logs[-100:]
 
-        summary = f"Synced successfully ({ops_count} change{'s' if ops_count != 1 else ''})" if ops_count > 0 else "All saves are up to date"
+        summary = f"Google Drive sync complete ({ops_count} change{'s' if ops_count != 1 else ''})" if ops_count > 0 else "All saves are up to date on Google Drive"
         return {
             "success": True,
             "operations_count": ops_count,
@@ -187,10 +184,9 @@ class Plugin:
     async def _main(self):
         self.loop = asyncio.get_event_loop()
         logger.info("[syncMyShit] Initializing syncMyShit Decky plugin...")
-
-        # Initialize active sync folder
-        folder = self._get_active_sync_folder()
-        logger.info(f"[syncMyShit] Active sync folder: {folder}")
+        is_auth = self.oauth_mgr.is_authenticated()
+        email = self.oauth_mgr.get_user_email()
+        logger.info(f"[syncMyShit] Google Drive status: {'Connected as ' + email if is_auth else 'Not Connected'}")
 
         # Start process monitor if auto-sync is enabled
         if self.config.get("auto_sync_on_process", True):
@@ -203,15 +199,17 @@ class Plugin:
     # Decky callable RPC endpoints
     async def get_status(self) -> Dict[str, Any]:
         """Returns overall status of syncMyShit for the UI."""
-        sync_folder = str(self._get_active_sync_folder())
+        is_auth = self.oauth_mgr.is_authenticated()
+        email = self.oauth_mgr.get_user_email()
         detected = detect_installed_emulators()
         custom_paths = self.config.get("custom_paths", [])
         is_monitoring = self._monitor is not None and self._monitor._running
 
         return {
             "success": True,
-            "sync_folder": sync_folder,
-            "sync_mode": self.config.get("sync_mode", "local_folder"),
+            "is_authenticated": is_auth,
+            "email": email,
+            "drive_folder": "syncMyShit",
             "auto_sync": self.config.get("auto_sync_on_process", True),
             "is_monitoring": is_monitoring,
             "last_sync_timestamp": self.config.get("last_sync_timestamp", 0),
@@ -299,20 +297,39 @@ class Plugin:
             "is_monitoring": self._monitor is not None and self._monitor._running,
         }
 
-    async def set_sync_folder(self, path: str) -> Dict[str, Any]:
-        """Sets the cloud sync destination directory."""
-        if not path:
-            return {"success": False, "error": "Path cannot be empty"}
-
-        expanded = Path(os.path.expanduser(path)).resolve()
+    async def start_google_login(self) -> Dict[str, Any]:
+        """Starts local OAuth loopback listener and returns authorization URL."""
         try:
-            expanded.mkdir(parents=True, exist_ok=True)
-            self.config.set("local_sync_folder", str(expanded))
-            self.config.set("sync_mode", "local_folder")
-            logger.info(f"[syncMyShit] Updated sync directory to: {expanded}")
-            return {"success": True, "sync_folder": str(expanded)}
+            auth_url = self.oauth_mgr.start_auth_flow()
+            try:
+                import webbrowser
+                webbrowser.open(auth_url)
+            except Exception:
+                pass
+            return {"success": True, "auth_url": auth_url}
         except Exception as e:
+            logger.error(f"[syncMyShit] Failed to start Google login: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
+
+    async def submit_auth_code(self, code_or_url: str) -> Dict[str, Any]:
+        """Exchanges an authorization code or callback URL for Google Drive tokens."""
+        try:
+            code = code_or_url.strip()
+            if "code=" in code:
+                parsed = urllib.parse.urlparse(code)
+                qs = urllib.parse.parse_qs(parsed.query)
+                code = qs.get("code", [code])[0]
+            tokens = self.oauth_mgr.exchange_code(code)
+            return {"success": True, "email": tokens.get("email", "")}
+        except Exception as e:
+            logger.error(f"[syncMyShit] Failed to exchange code: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+
+    async def sign_out_google(self) -> Dict[str, Any]:
+        """Disconnects and removes stored Google Drive credentials."""
+        self.oauth_mgr.sign_out()
+        logger.info("[syncMyShit] Disconnected Google Drive account")
+        return {"success": True}
 
     async def get_recent_logs(self) -> Dict[str, Any]:
         """Returns recent sync log entries."""

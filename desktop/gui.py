@@ -19,7 +19,7 @@ from tkinter import ttk, messagebox, filedialog
 
 from config import ConfigManager
 from emulator_registry import build_emulator_database, detect_installed_emulators
-from drive_sync import FolderSyncProvider
+from drive_sync import GoogleOAuthManager, GoogleDriveSyncProvider
 from process_monitor import ProcessMonitor
 from sync_engine import SyncEngine
 
@@ -53,6 +53,8 @@ class SyncMyShitGUI(tk.Tk):
 
         self.config = ConfigManager()
         self.engine = SyncEngine(keep_backups=int(self.config.get("keep_backups_count", 5)))
+        self.oauth_mgr = GoogleOAuthManager(self.config)
+        self.provider = GoogleDriveSyncProvider(self.oauth_mgr, self.engine)
         self.detected_emulators: List[Dict[str, object]] = []
 
         self.watcher_thread: Optional[threading.Thread] = None
@@ -169,35 +171,41 @@ class SyncMyShitGUI(tk.Tk):
         )
         self.status_badge.pack(side="right", anchor="center")
 
-        # ── Sync Folder / Cloud Target Card ─────────────────────────────────
-        folder_card = tk.Frame(main_container, bg=BG_CARD, padx=14, pady=12, highlightbackground=BORDER_COLOR, highlightthickness=1)
-        folder_card.pack(fill="x", pady=(0, 12))
+        # ── Google Drive Cloud Account Card ─────────────────────────────────
+        drive_card = tk.Frame(main_container, bg=BG_CARD, padx=14, pady=12, highlightbackground=BORDER_COLOR, highlightthickness=1)
+        drive_card.pack(fill="x", pady=(0, 12))
 
-        f_header = tk.Frame(folder_card, bg=BG_CARD)
-        f_header.pack(fill="x", pady=(0, 6))
-        ttk.Label(f_header, text="Cloud & Sync Target Folder", style="CardTitle.TLabel").pack(side="left")
-        ttk.Label(f_header, text="Points to your Google Drive, Syncthing, Nextcloud, or local sync directory", style="CardSub.TLabel").pack(side="left", padx=8)
+        d_header = tk.Frame(drive_card, bg=BG_CARD)
+        d_header.pack(fill="x", pady=(0, 6))
+        ttk.Label(d_header, text="☁️ Google Drive Cloud Account", style="CardTitle.TLabel").pack(side="left")
+        ttk.Label(d_header, text="Syncs saves directly to your private Google Drive (syncMyShit/)", style="CardSub.TLabel").pack(side="left", padx=8)
 
-        f_row = tk.Frame(folder_card, bg=BG_CARD)
-        f_row.pack(fill="x")
+        d_row = tk.Frame(drive_card, bg=BG_CARD)
+        d_row.pack(fill="x", pady=(4, 0))
 
-        self.folder_var = tk.StringVar(value=self._get_active_sync_folder())
-        self.folder_entry = tk.Entry(
-            f_row,
-            textvariable=self.folder_var,
-            font=("Segoe UI", 9),
+        self.account_lbl = tk.Label(
+            d_row,
+            text="",
+            font=("Segoe UI", 10, "bold"),
             bg=BG_INPUT,
             fg=TEXT_PRIMARY,
-            insertbackground=TEXT_PRIMARY,
+            padx=12,
+            pady=6,
             relief="flat",
             highlightbackground=BORDER_COLOR,
             highlightthickness=1,
-            state="readonly"
+            anchor="w"
         )
-        self.folder_entry.pack(side="left", fill="x", expand=True, ipady=6, padx=(0, 8))
+        self.account_lbl.pack(side="left", fill="x", expand=True, padx=(0, 8))
 
-        ttk.Button(f_row, text="Browse...", style="Secondary.TButton", command=self._browse_sync_folder).pack(side="left", padx=(0, 6))
-        ttk.Button(f_row, text="Open Folder", style="Secondary.TButton", command=self._open_sync_folder).pack(side="left")
+        self.login_btn = ttk.Button(d_row, text="🔑 Sign In with Google", style="Primary.TButton", command=self.on_login_clicked)
+        self.login_btn.pack(side="left", padx=(0, 6))
+
+        self.manual_btn = ttk.Button(d_row, text="Paste Code", style="Secondary.TButton", command=self.on_manual_code_clicked)
+        self.manual_btn.pack(side="left", padx=(0, 6))
+
+        self.logout_btn = ttk.Button(d_row, text="Sign Out", style="Secondary.TButton", command=self.on_logout_clicked)
+        self._update_auth_ui()
 
         # ── Quick Action Buttons ────────────────────────────────────────────
         actions_frame = tk.Frame(main_container, bg=BG_DARK)
@@ -278,40 +286,61 @@ class SyncMyShitGUI(tk.Tk):
         self.log_text.tag_config("dim", foreground=TEXT_MUTED)
 
     # ─────────────────────────────────────────────────────────────────────────
-    # Helper & Config methods
+    # Google Drive Auth & Helper methods
     # ─────────────────────────────────────────────────────────────────────────
-    def _get_active_sync_folder(self) -> str:
-        f = self.config.get("local_sync_folder")
-        if not f:
-            f = str(self.config.config_dir / "syncMyShit")
-            self.config.set("local_sync_folder", f)
-            self.config.set("sync_mode", "local_folder")
-        Path(f).mkdir(parents=True, exist_ok=True)
-        return f
+    def _update_auth_ui(self):
+        is_auth = self.oauth_mgr.is_authenticated()
+        email = self.oauth_mgr.get_user_email()
+        if is_auth:
+            self.account_lbl.config(text=f"🟢 Connected: {email or 'Google Account'} (syncMyShit/)", fg=ACCENT_SUCCESS)
+            self.login_btn.pack_forget()
+            self.manual_btn.pack_forget()
+            self.logout_btn.pack(side="left")
+        else:
+            self.account_lbl.config(text="🔴 Not Connected to Google Drive", fg=ACCENT_DANGER)
+            self.logout_btn.pack_forget()
+            self.login_btn.pack(side="left", padx=(0, 6))
+            self.manual_btn.pack(side="left", padx=(0, 6))
 
-    def _browse_sync_folder(self):
-        cur = self.folder_var.get()
-        chosen = filedialog.askdirectory(initialdir=cur, title="Select Sync Folder (Google Drive, Syncthing, etc.)")
-        if chosen:
-            p = str(Path(chosen).resolve())
-            self.folder_var.set(p)
-            self.config.set("local_sync_folder", p)
-            self.config.set("sync_mode", "local_folder")
-            self.log(f"📁 Sync folder changed to: {p}", "info")
-
-    def _open_sync_folder(self):
-        folder = self.folder_var.get()
-        if not os.path.exists(folder):
-            os.makedirs(folder, exist_ok=True)
+    def on_login_clicked(self):
         try:
-            if sys.platform == "win32":
-                os.startfile(folder)
-            elif sys.platform == "darwin":
-                subprocess.Popen(["open", folder])
-            else:
-                subprocess.Popen(["xdg-open", folder])
+            auth_url = self.oauth_mgr.start_auth_flow()
+            import webbrowser
+            webbrowser.open(auth_url)
+            self.log("🔑 Google Sign-In opened in browser! Complete authentication to connect.", "warning")
+
+            def _poll():
+                for _ in range(60):
+                    time.sleep(2)
+                    if self.oauth_mgr.is_authenticated():
+                        self.after(0, self._update_auth_ui)
+                        self.after(0, lambda: self.log(f"✅ Successfully signed in as {self.oauth_mgr.get_user_email()}!", "success"))
+                        return
+            threading.Thread(target=_poll, daemon=True).start()
         except Exception as e:
-            self.log(f"Could not open folder: {e}", "error")
+            self.log(f"Failed to start Google login: {e}", "error")
+
+    def on_manual_code_clicked(self):
+        from tkinter import simpledialog
+        code = simpledialog.askstring("Google OAuth Code", "Paste authorization code or callback URL:")
+        if code:
+            try:
+                code_clean = code.strip()
+                if "code=" in code_clean:
+                    import urllib.parse
+                    parsed = urllib.parse.urlparse(code_clean)
+                    qs = urllib.parse.parse_qs(parsed.query)
+                    code_clean = qs.get("code", [code_clean])[0]
+                tokens = self.oauth_mgr.exchange_code(code_clean)
+                self._update_auth_ui()
+                self.log(f"✅ Successfully connected to Google Drive as {tokens.get('email', '')}!", "success")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to authenticate:\n{e}", parent=self)
+
+    def on_logout_clicked(self):
+        self.oauth_mgr.sign_out()
+        self._update_auth_ui()
+        self.log("Signed out from Google Drive.", "info")
 
     def _clear_log(self):
         self.log_text.config(state="normal")
@@ -350,6 +379,10 @@ class SyncMyShitGUI(tk.Tk):
     # Actions
     # ─────────────────────────────────────────────────────────────────────────
     def on_sync_clicked(self):
+        if not self.oauth_mgr.is_authenticated():
+            messagebox.showwarning("Google Drive Required", "Please sign in to Google Drive before syncing saves.", parent=self)
+            return
+
         if self.is_syncing:
             return
         self.is_syncing = True
@@ -358,16 +391,12 @@ class SyncMyShitGUI(tk.Tk):
 
         def _run():
             try:
-                target_folder = Path(self.folder_var.get())
-                provider = FolderSyncProvider(target_folder, self.engine)
-
                 total_synced = 0
                 for emu in self.detected_emulators:
                     paths = [Path(p) for p in emu["paths"]]
-                    logs = provider.sync_emulator(emu["id"], paths, emu["extensions"])
+                    logs = self.provider.sync_emulator(emu["id"], paths, emu["extensions"], drive_folder=emu.get("drive_folder"))
                     if logs:
                         for l in logs:
-                            # Clean rich tags
                             clean = l.replace("[green]", "").replace("[/green]", "").replace("[cyan]", "").replace("[/cyan]", "")
                             self.after(0, lambda msg=f"{emu['name']}: {clean}": self.log(msg, "success"))
                             total_synced += 1
@@ -376,13 +405,16 @@ class SyncMyShitGUI(tk.Tk):
                 for cp in self.config.get("custom_paths", []):
                     p = Path(cp["path"])
                     if p.exists():
-                        logs = provider.sync_emulator(cp["name"].lower().replace(" ", "_"), [p], [])
+                        logs = self.provider.sync_emulator(cp["name"].lower().replace(" ", "_"), [p], [], drive_folder=cp["name"])
                         for l in logs:
                             clean = l.replace("[green]", "").replace("[/green]", "").replace("[cyan]", "").replace("[/cyan]", "")
                             self.after(0, lambda msg=f"{cp['name']}: {clean}": self.log(msg, "success"))
                             total_synced += 1
 
-                self.after(0, lambda: self.log(f"✔ Sync finished successfully! ({total_synced} operations performed)", "success"))
+                if total_synced == 0:
+                    self.after(0, lambda: self.log("✔ All saves are up to date on Google Drive!", "success"))
+                else:
+                    self.after(0, lambda: self.log(f"✔ Google Drive sync complete! ({total_synced} files updated)", "success"))
             except Exception as e:
                 self.after(0, lambda: self.log(f"Sync error: {e}", "error"))
             finally:
@@ -423,14 +455,15 @@ class SyncMyShitGUI(tk.Tk):
 
     def on_watch_toggle_clicked(self):
         if not self.is_watching:
+            if not self.oauth_mgr.is_authenticated():
+                messagebox.showwarning("Google Drive Required", "Please sign in to Google Drive before starting auto-sync watcher.", parent=self)
+                return
+
             # Start watcher
             self.is_watching = True
             self.watch_btn.config(text="⏹ Stop Auto-Watcher", style="Warning.TButton")
             self.status_badge.config(text="● WATCHING", fg=ACCENT_WARNING)
             self.log("👁 Auto-Sync Watcher daemon started! Monitoring game processes in background...", "warning")
-
-            target_folder = Path(self.folder_var.get())
-            provider = FolderSyncProvider(target_folder, self.engine)
 
             targets = {}
             for emu in self.detected_emulators:
@@ -442,20 +475,26 @@ class SyncMyShitGUI(tk.Tk):
                 name = emu["name"] if emu else emu_id
                 self.after(0, lambda: self.log(f"▶ Emulator Started: {name} (PID {pid}). Pulling newest cloud saves...", "warning"))
                 if emu:
-                    logs = provider.sync_emulator(emu_id, [Path(p) for p in emu["paths"]], emu["extensions"])
-                    for l in logs:
-                        clean = l.replace("[green]", "").replace("[/green]", "").replace("[cyan]", "").replace("[/cyan]", "")
-                        self.after(0, lambda msg=clean: self.log(f"  {msg}", "info"))
+                    try:
+                        logs = self.provider.sync_emulator(emu_id, [Path(p) for p in emu["paths"]], emu["extensions"], drive_folder=emu.get("drive_folder"))
+                        for l in logs:
+                            clean = l.replace("[green]", "").replace("[/green]", "").replace("[cyan]", "").replace("[/cyan]", "")
+                            self.after(0, lambda msg=clean: self.log(f"  {msg}", "info"))
+                    except Exception as e:
+                        self.after(0, lambda: self.log(f"  Drive error: {e}", "error"))
 
             def on_exit(emu_id: str, pid: str):
                 emu = emu_map.get(emu_id)
                 name = emu["name"] if emu else emu_id
-                self.after(0, lambda: self.log(f"⏹ Emulator Closed: {name} (PID {pid}). Backing up new saves to cloud...", "warning"))
+                self.after(0, lambda: self.log(f"⏹ Emulator Closed: {name} (PID {pid}). Uploading new saves to Google Drive...", "warning"))
                 if emu:
-                    logs = provider.sync_emulator(emu_id, [Path(p) for p in emu["paths"]], emu["extensions"])
-                    for l in logs:
-                        clean = l.replace("[green]", "").replace("[/green]", "").replace("[cyan]", "").replace("[/cyan]", "")
-                        self.after(0, lambda msg=clean: self.log(f"  {msg}", "success"))
+                    try:
+                        logs = self.provider.sync_emulator(emu_id, [Path(p) for p in emu["paths"]], emu["extensions"], drive_folder=emu.get("drive_folder"))
+                        for l in logs:
+                            clean = l.replace("[green]", "").replace("[/green]", "").replace("[cyan]", "").replace("[/cyan]", "")
+                            self.after(0, lambda msg=clean: self.log(f"  {msg}", "success"))
+                    except Exception as e:
+                        self.after(0, lambda: self.log(f"  Drive error: {e}", "error"))
 
             self.watcher_monitor = ProcessMonitor(
                 emulator_targets=targets,

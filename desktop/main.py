@@ -9,10 +9,11 @@ import argparse
 import os
 import sys
 import time
+import webbrowser
 from pathlib import Path
 
 from config import ConfigManager
-from drive_sync import FolderSyncProvider, GoogleDriveProvider, detect_default_cloud_folder
+from drive_sync import GoogleOAuthManager, GoogleDriveSyncProvider
 from emulator_registry import build_emulator_database, detect_installed_emulators
 from process_monitor import ProcessMonitor
 from sync_engine import SyncEngine
@@ -41,34 +42,18 @@ def has_display() -> bool:
     return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
 
 
-def get_active_sync_folder(config: ConfigManager) -> Path:
-    f = config.get("local_sync_folder")
-    if f and Path(f).exists():
-        return Path(f)
-
-    # Check for auto-detected Google Drive / cloud folder
-    detected = detect_default_cloud_folder()
-    if detected:
-        config.set("local_sync_folder", str(detected))
-        config.set("sync_mode", "local_folder")
-        return detected
-
-    # Fallback to config directory
-    default_dir = config.config_dir / "syncMyShit"
-    default_dir.mkdir(parents=True, exist_ok=True)
-    config.set("local_sync_folder", str(default_dir))
-    config.set("sync_mode", "local_folder")
-    return default_dir
-
-
 def cmd_status(config: ConfigManager, engine: SyncEngine):
-    console.print("\n[bold cyan]🎮 syncMyShit Desktop Status (v1.0.13)[/bold cyan]")
+    oauth_mgr = GoogleOAuthManager(config)
+    console.print("\n[bold cyan]🎮 syncMyShit Desktop Status (v1.0.15)[/bold cyan]")
     detected = detect_installed_emulators()
     custom_paths = config.get("custom_paths", [])
 
     console.print(f"Config Directory: [cyan]{config.config_dir}[/cyan]")
-    sync_folder = get_active_sync_folder(config)
-    console.print(f"Cloud/Sync Target: [green]{sync_folder}[/green]")
+    if oauth_mgr.is_authenticated():
+        email = oauth_mgr.get_user_email()
+        console.print(f"Google Drive: [bold green]Connected[/bold green] (Account: [cyan]{email}[/cyan], Folder: [cyan]syncMyShit/[/cyan])")
+    else:
+        console.print("Google Drive: [bold red]Not Connected[/bold red] - Run '[cyan]syncmyshit login[/cyan]' to connect your Google account.")
 
     console.print(f"\n[bold]Detected Emulators ({len(detected)} found):[/bold]")
     if not detected:
@@ -98,10 +83,12 @@ def cmd_scan(config: ConfigManager, engine: SyncEngine):
             files.extend(engine.scan_directory(p, emu["extensions"]))
 
         if files:
-            console.print(f"\n[bold green]{emu['name']}[/bold green] ({len(files)} saves):")
-            for f in files:
+            console.print(f"\n[bold green]{emu['name']}[/bold green] ({len(files)} saves found):")
+            for f in files[:5]:
                 sz_kb = f["size"] / 1024.0
                 console.print(f"  ├── {f['relative']} [dim]({sz_kb:.1f} KB)[/dim]")
+            if len(files) > 5:
+                console.print(f"  └── [dim]... and {len(files) - 5} more files[/dim]")
             total_files += len(files)
 
     for cp in config.get("custom_paths", []):
@@ -118,50 +105,104 @@ def cmd_scan(config: ConfigManager, engine: SyncEngine):
     console.print(f"\n[bold]Total Save Files Found:[/bold] [cyan]{total_files}[/cyan]\n")
 
 
+def cmd_login(config: ConfigManager):
+    oauth_mgr = GoogleOAuthManager(config)
+    console.print("\n[bold cyan]🔑 Google Drive Sign-In[/bold cyan]")
+    try:
+        auth_url = oauth_mgr.start_auth_flow()
+        console.print("Opening browser for Google authorization...")
+        console.print(f"If browser does not open automatically, visit:\n[cyan]{auth_url}[/cyan]\n")
+        try:
+            webbrowser.open(auth_url)
+        except Exception:
+            pass
+
+        console.print("[dim]Waiting for browser authorization... (Or paste the authorization code below)[/dim]")
+        # Give user option to wait or paste code
+        for _ in range(30):
+            time.sleep(2)
+            if oauth_mgr.is_authenticated():
+                console.print(f"[bold green]✔ Successfully connected to Google Drive as {oauth_mgr.get_user_email()}![/bold green]\n")
+                return
+
+        code_input = input("\nPaste authorization code or callback URL (or press Enter to cancel): ").strip()
+        if code_input:
+            if "code=" in code_input:
+                import urllib.parse
+                parsed = urllib.parse.urlparse(code_input)
+                qs = urllib.parse.parse_qs(parsed.query)
+                code_input = qs.get("code", [code_input])[0]
+            tokens = oauth_mgr.exchange_code(code_input)
+            console.print(f"[bold green]✔ Successfully connected to Google Drive as {tokens.get('email', 'User')}![/bold green]\n")
+    except Exception as e:
+        console.print(f"[bold red]Login failed:[/bold red] {e}\n")
+
+
+def cmd_logout(config: ConfigManager):
+    oauth_mgr = GoogleOAuthManager(config)
+    oauth_mgr.sign_out()
+    console.print("[green]✔ Disconnected and signed out of Google Drive.[/green]\n")
+
+
 def cmd_sync(config: ConfigManager, engine: SyncEngine):
-    console.print("\n[bold cyan]⚡ Running Save Sync...[/bold cyan]")
-    target_folder = get_active_sync_folder(config)
-    provider = FolderSyncProvider(target_folder, engine)
+    oauth_mgr = GoogleOAuthManager(config)
+    if not oauth_mgr.is_authenticated():
+        console.print("[bold red]Error:[/bold red] Not connected to Google Drive. Run '[cyan]syncmyshit login[/cyan]' first.")
+        return
+
+    console.print(f"\n[bold cyan]⚡ Running Google Drive Save Sync ({oauth_mgr.get_user_email()})...[/bold cyan]")
+    provider = GoogleDriveSyncProvider(oauth_mgr, engine)
     total_ops = 0
 
     detected = detect_installed_emulators()
     for emu in detected:
         paths = [Path(p) for p in emu["paths"]]
-        logs = provider.sync_emulator(
-            emu["id"],
-            paths,
-            emu["extensions"],
-            drive_folder=emu.get("drive_folder")
-        )
-        if logs:
-            console.print(f"[bold]{emu['name']}:[/bold]")
-            for log in logs:
-                console.print(f"  {log}")
-                total_ops += 1
+        try:
+            logs = provider.sync_emulator(
+                emu["id"],
+                paths,
+                emu["extensions"],
+                drive_folder=emu.get("drive_folder")
+            )
+            if logs:
+                console.print(f"[bold]{emu['name']}:[/bold]")
+                for log in logs:
+                    console.print(f"  {log}")
+                    total_ops += 1
+        except Exception as e:
+            console.print(f"[red]Error syncing {emu['name']}:[/red] {e}")
 
     for cp in config.get("custom_paths", []):
         p = Path(cp["path"])
         if p.exists():
-            logs = provider.sync_emulator(
-                cp["name"].lower().replace(" ", "_"),
-                [p],
-                [],
-                drive_folder=cp["name"]
-            )
-            if logs:
-                console.print(f"[bold]{cp['name']}:[/bold]")
-                for log in logs:
-                    console.print(f"  {log}")
-                    total_ops += 1
+            try:
+                logs = provider.sync_emulator(
+                    cp["name"].lower().replace(" ", "_"),
+                    [p],
+                    [],
+                    drive_folder=cp["name"]
+                )
+                if logs:
+                    console.print(f"[bold]{cp['name']}:[/bold]")
+                    for log in logs:
+                        console.print(f"  {log}")
+                        total_ops += 1
+            except Exception as e:
+                console.print(f"[red]Error syncing {cp['name']}:[/red] {e}")
 
     if total_ops == 0:
-        console.print("[green]✔ All saves are already up-to-date with cloud![/green]\n")
+        console.print("[green]✔ All saves are already up-to-date with Google Drive![/green]\n")
     else:
-        console.print(f"[green]✔ Sync complete! ({total_ops} files updated)[/green]\n")
+        console.print(f"[green]✔ Sync complete! ({total_ops} files updated on Google Drive)[/green]\n")
 
 
 def cmd_watch(config: ConfigManager, engine: SyncEngine):
-    console.print("\n[bold cyan]👁 syncMyShit Automagic Daemon Running[/bold cyan]")
+    oauth_mgr = GoogleOAuthManager(config)
+    if not oauth_mgr.is_authenticated():
+        console.print("[bold red]Error:[/bold red] Not connected to Google Drive. Run '[cyan]syncmyshit login[/cyan]' first.")
+        return
+
+    console.print(f"\n[bold cyan]👁 syncMyShit Automagic Daemon Running ({oauth_mgr.get_user_email()})[/bold cyan]")
     console.print("[dim]Monitoring running emulator processes in background... Press Ctrl+C to stop.[/dim]\n")
 
     detected = detect_installed_emulators()
@@ -169,39 +210,44 @@ def cmd_watch(config: ConfigManager, engine: SyncEngine):
     for emu in detected:
         targets[emu["id"]] = emu["process_names"]
 
-    target_folder = get_active_sync_folder(config)
-    provider = FolderSyncProvider(target_folder, engine)
+    provider = GoogleDriveSyncProvider(oauth_mgr, engine)
     emu_map = {e["id"]: e for e in detected}
 
     def on_launch(emu_id: str, pid: str):
         emu = emu_map.get(emu_id)
         name = emu["name"] if emu else emu_id
         console.print(f"\n[bold green]▶ Emulator Started:[/bold green] {name} (PID {pid})")
-        console.print("  [cyan]Running Pre-Play Cloud Check...[/cyan]")
+        console.print("  [cyan]Running Pre-Play Google Drive Check...[/cyan]")
         if emu:
-            logs = provider.sync_emulator(
-                emu_id,
-                [Path(p) for p in emu["paths"]],
-                emu["extensions"],
-                drive_folder=emu.get("drive_folder")
-            )
-            for l in logs:
-                console.print(f"    {l}")
+            try:
+                logs = provider.sync_emulator(
+                    emu_id,
+                    [Path(p) for p in emu["paths"]],
+                    emu["extensions"],
+                    drive_folder=emu.get("drive_folder")
+                )
+                for l in logs:
+                    console.print(f"    {l}")
+            except Exception as e:
+                console.print(f"    [red]Error:[/red] {e}")
 
     def on_exit(emu_id: str, pid: str):
         emu = emu_map.get(emu_id)
         name = emu["name"] if emu else emu_id
         console.print(f"\n[bold yellow]⏹ Emulator Closed:[/bold yellow] {name} (PID {pid})")
-        console.print("  [green]Running Post-Play Save Sync...[/green]")
+        console.print("  [green]Running Post-Play Save Sync to Google Drive...[/green]")
         if emu:
-            logs = provider.sync_emulator(
-                emu_id,
-                [Path(p) for p in emu["paths"]],
-                emu["extensions"],
-                drive_folder=emu.get("drive_folder")
-            )
-            for l in logs:
-                console.print(f"    {l}")
+            try:
+                logs = provider.sync_emulator(
+                    emu_id,
+                    [Path(p) for p in emu["paths"]],
+                    emu["extensions"],
+                    drive_folder=emu.get("drive_folder")
+                )
+                for l in logs:
+                    console.print(f"    {l}")
+            except Exception as e:
+                console.print(f"    [red]Error:[/red] {e}")
 
     monitor = ProcessMonitor(
         emulator_targets=targets,
@@ -213,41 +259,36 @@ def cmd_watch(config: ConfigManager, engine: SyncEngine):
     try:
         monitor.run_forever()
     except KeyboardInterrupt:
-        console.print("\n[yellow]Daemon stopped by user.[/yellow]")
+        console.print("\n[yellow]Stopping daemon watcher...[/yellow]")
+        monitor.stop()
 
 
 def cmd_add_path(config: ConfigManager, name: str, path: str):
-    p = Path(path).expanduser().resolve()
+    p = Path(path).resolve()
     if not p.exists():
-        console.print(f"[red]Error: Path does not exist: {p}[/red]")
+        console.print(f"[bold red]Error:[/bold red] Path does not exist: {p}")
         return
     config.add_custom_path(name, str(p))
-    console.print(f"[green]✔ Added custom path: {name} -> {p}[/green]")
-
-
-def cmd_set_folder(config: ConfigManager, path: str):
-    p = Path(path).expanduser().resolve()
-    p.mkdir(parents=True, exist_ok=True)
-    config.set("local_sync_folder", str(p))
-    config.set("sync_mode", "local_folder")
-    console.print(f"[green]✔ Set sync folder to: {p}[/green]")
+    console.print(f"[green]✔ Added custom save path:[/green] {name} -> {p}")
 
 
 def run_interactive_cli(config: ConfigManager, engine: SyncEngine):
-    """Fallback interactive menu for terminal sessions."""
+    oauth_mgr = GoogleOAuthManager(config)
     while True:
-        cmd_status(config, engine)
-        print("────────────────────────────────────────────────────────")
-        print(" [1] ⚡ Sync Saves Now")
-        print(" [2] 🔍 Scan Save Files")
-        print(" [3] 👁  Run Background Watcher Daemon (Auto-sync)")
-        print(" [4] 📁 Change Cloud / Sync Target Folder")
-        print(" [5] ➕ Add Custom Game / Emulator Save Directory")
-        print(" [6] 🖥 Launch Graphical UI")
-        print(" [0] Exit")
-        print("────────────────────────────────────────────────────────")
+        email = oauth_mgr.get_user_email() if oauth_mgr.is_authenticated() else "Not Connected"
+        console.print("\n[bold cyan]🎮 syncMyShit - Automagic Cloud Save Sync[/bold cyan]")
+        console.print(f"[dim]Google Drive Account: {email}[/dim]")
+        print("1. ⚡ Sync Saves Now (Google Drive)")
+        print("2. 🔍 Scan Emulator Save Files")
+        print("3. 👁 Run Auto-Sync Background Watcher")
+        print("4. 🔑 Sign In to Google Drive")
+        print("5. 🚪 Sign Out of Google Drive")
+        print("6. ➕ Add Custom Save Path")
+        print("7. 🖥 Open Graphical Interface (GUI)")
+        print("0. ❌ Exit")
+
         try:
-            choice = input("Select an option (0-6): ").strip()
+            choice = input("Select an option (0-7): ").strip()
         except (EOFError, KeyboardInterrupt):
             print("\nGoodbye!")
             break
@@ -259,15 +300,15 @@ def run_interactive_cli(config: ConfigManager, engine: SyncEngine):
         elif choice == "3":
             cmd_watch(config, engine)
         elif choice == "4":
-            new_path = input("Enter new sync folder path: ").strip()
-            if new_path:
-                cmd_set_folder(config, new_path)
+            cmd_login(config)
         elif choice == "5":
+            cmd_logout(config)
+        elif choice == "6":
             name = input("Enter game/emulator name: ").strip()
             path_str = input("Enter save directory path: ").strip()
             if name and path_str:
                 cmd_add_path(config, name, path_str)
-        elif choice == "6":
+        elif choice == "7":
             if has_display():
                 from gui import run_gui
                 run_gui()
@@ -278,39 +319,41 @@ def run_interactive_cli(config: ConfigManager, engine: SyncEngine):
             print("Goodbye!")
             break
         else:
-            print("Invalid option. Please choose 0 to 6.")
+            print("Invalid option. Please choose 0 to 7.")
 
 
 def main():
     parser = argparse.ArgumentParser(
         prog="syncmyshit",
-        description="syncMyShit - Automagic Retro Game Cloud Save Sync (Linux, Windows, Android)"
+        description="syncMyShit - Automagic Retro Game Google Drive Save Sync (Linux, Windows, Android)"
     )
     parser.add_argument("--gui", action="store_true", help="Force open graphical user interface (GUI)")
     parser.add_argument("--cli", action="store_true", help="Force interactive terminal mode")
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
     subparsers.add_parser("gui", help="Open graphical user interface")
-    subparsers.add_parser("status", help="Show detected emulators and sync status")
+    subparsers.add_parser("status", help="Show detected emulators and Google Drive status")
+    subparsers.add_parser("login", help="Authenticate with Google Drive via browser")
+    subparsers.add_parser("logout", help="Sign out from Google Drive")
     subparsers.add_parser("scan", help="Scan and list save files found in emulators")
-    subparsers.add_parser("sync", help="Run save sync immediately once")
+    subparsers.add_parser("sync", help="Run save sync with Google Drive immediately")
     subparsers.add_parser("watch", help="Run background watcher daemon for automagic sync")
 
     add_p = subparsers.add_parser("add-path", help="Add custom game/emulator save path")
     add_p.add_argument("name", help="Name of game or emulator")
     add_p.add_argument("path", help="Directory path containing saves")
 
-    set_f = subparsers.add_parser("set-folder", help="Set target sync folder (Syncthing, Drive, etc.)")
-    set_f.add_argument("path", help="Directory path to sync saves to")
-
     args = parser.parse_args()
 
     config = ConfigManager()
     engine = SyncEngine(keep_backups=int(config.get("keep_backups_count", 5)))
 
-    # If explicit CLI command is provided, execute it directly
     if args.command == "status":
         cmd_status(config, engine)
+    elif args.command == "login":
+        cmd_login(config)
+    elif args.command == "logout":
+        cmd_logout(config)
     elif args.command == "scan":
         cmd_scan(config, engine)
     elif args.command == "sync":
@@ -319,16 +362,12 @@ def main():
         cmd_watch(config, engine)
     elif args.command == "add-path":
         cmd_add_path(config, args.name, args.path)
-    elif args.command == "set-folder":
-        cmd_set_folder(config, args.path)
     elif args.command == "gui" or args.gui:
         from gui import run_gui
         run_gui()
     elif args.cli:
         run_interactive_cli(config, engine)
     else:
-        # Default action when double-clicked or executed without arguments:
-        # Launch GUI if display is available; otherwise fallback to interactive CLI menu!
         if has_display():
             try:
                 from gui import run_gui
