@@ -77,20 +77,48 @@ if [ -d "$LOCAL_PLUGIN_DIR" ] && [ -f "$LOCAL_PLUGIN_DIR/plugin.json" ]; then
     $SUDO_CMD mkdir -p "$PLUGIN_DEST/py_modules"
     $SUDO_CMD rsync -av --exclude='__pycache__' "$LOCAL_PLUGIN_DIR/py_modules/" "$PLUGIN_DEST/py_modules/"
 else
-    echo -e "${CYAN}Downloading latest syncMyShit Decky release from GitHub...${NC}"
+    echo -e "${CYAN}Fetching syncMyShit Decky plugin from GitHub...${NC}"
     TMP_DIR=$(mktemp -d)
+    TARBALL_URL="https://github.com/Kyss007/syncMyShit/archive/refs/heads/main.tar.gz"
     ZIP_URL="https://github.com/Kyss007/syncMyShit/releases/latest/download/syncMyShit-decky.zip"
-    
-    curl -sSL "$ZIP_URL" -o "$TMP_DIR/syncMyShit-decky.zip" || {
-        echo -e "${RED}Error: Failed to download release zip. Check internet connection.${NC}"
-        rm -rf "$TMP_DIR"
-        exit 1
-    }
+    INSTALLED=0
 
-    $SUDO_CMD rm -rf "$PLUGIN_DEST"
-    $SUDO_CMD mkdir -p "$PLUGIN_DEST"
-    $SUDO_CMD unzip -q "$TMP_DIR/syncMyShit-decky.zip" -d "$HOMEBREW_DIR/plugins/"
+    # 1. If release zip is available, try it
+    if curl -sSLf "$ZIP_URL" -o "$TMP_DIR/syncMyShit-decky.zip" 2>/dev/null && command -v unzip >/dev/null 2>&1; then
+        if unzip -t "$TMP_DIR/syncMyShit-decky.zip" >/dev/null 2>&1; then
+            $SUDO_CMD rm -rf "$PLUGIN_DEST"
+            $SUDO_CMD mkdir -p "$HOMEBREW_DIR/plugins"
+            $SUDO_CMD unzip -q "$TMP_DIR/syncMyShit-decky.zip" -d "$HOMEBREW_DIR/plugins/"
+            INSTALLED=1
+        fi
+    fi
+
+    # 2. Fallback to GitHub tarball (guaranteed to work, does not require unzip)
+    if [ "$INSTALLED" -eq 0 ]; then
+        echo -e "${CYAN}Downloading plugin bundle from GitHub...${NC}"
+        if curl -sSLf "$TARBALL_URL" | tar -xz -C "$TMP_DIR"; then
+            EXTRACTED_DIR="$TMP_DIR/syncMyShit-main/decky-plugin"
+            if [ -d "$EXTRACTED_DIR" ]; then
+                $SUDO_CMD rm -rf "$PLUGIN_DEST"
+                $SUDO_CMD mkdir -p "$PLUGIN_DEST"
+                $SUDO_CMD cp "$EXTRACTED_DIR/plugin.json" "$PLUGIN_DEST/"
+                $SUDO_CMD cp "$EXTRACTED_DIR/package.json" "$PLUGIN_DEST/"
+                $SUDO_CMD cp "$EXTRACTED_DIR/main.py" "$PLUGIN_DEST/"
+                $SUDO_CMD cp "$EXTRACTED_DIR/README.md" "$PLUGIN_DEST/"
+                $SUDO_CMD cp -r "$EXTRACTED_DIR/dist" "$PLUGIN_DEST/"
+                $SUDO_CMD mkdir -p "$PLUGIN_DEST/py_modules"
+                $SUDO_CMD cp -r "$EXTRACTED_DIR/py_modules/"* "$PLUGIN_DEST/py_modules/"
+                INSTALLED=1
+            fi
+        fi
+    fi
+
     rm -rf "$TMP_DIR"
+
+    if [ "$INSTALLED" -eq 0 ]; then
+        echo -e "${RED}Error: Failed to download or install syncMyShit plugin.${NC}"
+        exit 1
+    fi
 fi
 
 # Ensure correct permissions and ownership

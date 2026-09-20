@@ -8,8 +8,14 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
 PLUGIN_DIR="$ROOT_DIR/decky-plugin"
 
-echo "Building Decky frontend bundle..."
-(cd "$PLUGIN_DIR" && node build.mjs)
+if [ ! -f "$PLUGIN_DIR/dist/index.js" ]; then
+    echo "Building Decky frontend bundle..."
+    if command -v npm >/dev/null 2>&1; then
+        (cd "$PLUGIN_DIR" && npm install --silent && node build.mjs)
+    else
+        (cd "$PLUGIN_DIR" && node build.mjs)
+    fi
+fi
 
 echo "Packaging syncMyShit Decky plugin..."
 mkdir -p "$DIST_DIR"
