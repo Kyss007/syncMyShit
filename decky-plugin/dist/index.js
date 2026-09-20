@@ -42,7 +42,7 @@ var require_react = __commonJS({
 var import_ui = __toESM(require_ui(), 1);
 
 // decky-manifest:@decky/manifest
-var manifest_default = { "name": "syncMyShit", "author": "Kyss007", "flags": [], "version": "2.1.0", "api_version": 1, "description": "Cloud save sync for Steam Deck \u2014 login in Desktop Mode, sync in Game Mode", "publish": { "tags": ["cloud", "save", "sync", "emulation", "gaming"], "description": "Automagic retro emulator cloud save sync across Steam Deck, Android, and PC.", "image": "https://raw.githubusercontent.com/Kyss007/syncMyShit/main/docs/banner.png" } };
+var manifest_default = { "name": "syncMyShit", "author": "Kyss007", "flags": [], "version": "2.1.1", "api_version": 1, "description": "Cloud save sync for Steam Deck \u2014 login in Desktop Mode, sync in Game Mode", "publish": { "tags": ["cloud", "save", "sync", "emulation", "gaming"], "description": "Automagic retro emulator cloud save sync across Steam Deck, Android, and PC.", "image": "https://raw.githubusercontent.com/Kyss007/syncMyShit/main/docs/banner.png" } };
 
 // node_modules/@decky/api/dist/index.js
 var manifest = manifest_default;
@@ -251,7 +251,7 @@ var Content = () => {
   const [logs, setLogs] = (0, import_react3.useState)([]);
   const [syncing, setSyncing] = (0, import_react3.useState)(false);
   const [syncTarget, setSyncTarget] = (0, import_react3.useState)(null);
-  const [version, setVersion] = (0, import_react3.useState)("2.1.0");
+  const [version, setVersion] = (0, import_react3.useState)("2.1.1");
   const [error, setError] = (0, import_react3.useState)("");
   const refresh = (0, import_react3.useCallback)(async () => {
     try {
@@ -266,7 +266,7 @@ var Content = () => {
       setEmail(st.email || "");
       setAutoSync(!!st.auto_sync);
       setMonitoring(!!st.is_monitoring);
-      setVersion(st.version || "2.1.0");
+      setVersion(st.version || "2.1.1");
       try {
         const scan = await apiScan();
         if (scan.success) {
@@ -393,7 +393,7 @@ var Content = () => {
       },
       LOGIN_CMD
     ),
-    /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { color: C.muted } }, "4. Finish Google in the browser", /* @__PURE__ */ window.SP_REACT.createElement("br", null), "5. Return to Gaming Mode \u2014 this panel will show Connected")
+    /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { color: C.muted } }, "First run asks for a Google ", /* @__PURE__ */ window.SP_REACT.createElement("span", { style: { color: C.text } }, "Desktop"), " OAuth Client ID (not the Android one \u2014 that causes invalid_request).", /* @__PURE__ */ window.SP_REACT.createElement("br", null), "Then finish Google in the browser and return here.")
   )), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.ButtonItem, { layout: "below", onClick: refresh }, /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6 } }, /* @__PURE__ */ window.SP_REACT.createElement(FaSyncAlt, { size: 12 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, "Refresh status")))), authed && /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.ButtonItem, { layout: "below", onClick: signOut }, /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6 } }, /* @__PURE__ */ window.SP_REACT.createElement(FaSignOutAlt, { size: 12 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, "Sign out"))))), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSection, { title: "Sync" }, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.ButtonItem, { layout: "below", onClick: () => doSync(), disabled: syncing || !authed }, /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8 } }, /* @__PURE__ */ window.SP_REACT.createElement(FaSyncAlt, { className: syncing && syncTarget === "all" ? "fa-spin" : "" }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, syncing && syncTarget === "all" ? "Syncing\u2026" : !authed ? "Sign in (Desktop Mode) to sync" : "\u26A1 Sync All Saves")))), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
     import_ui.ToggleField,
     {

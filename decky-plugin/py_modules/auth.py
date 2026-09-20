@@ -27,8 +27,27 @@ class AuthManager:
 
     @property
     def client_id(self) -> str:
+        # Prefer client_id stored with tokens (Desktop login), then config, then Android default
+        tokens = self.store.load_tokens() or {}
+        from_token = (tokens.get("client_id") or "").strip()
+        if from_token:
+            return from_token
         custom = (self.store.get("custom_oauth_client_id") or "").strip()
-        return custom or DEFAULT_CLIENT_ID
+        if custom:
+            return custom
+        # oauth_desktop.json written by desktop_login.py
+        try:
+            from pathlib import Path
+
+            oauth_path = Path.home() / ".config" / "syncMyShit" / "oauth_desktop.json"
+            if oauth_path.exists():
+                data = json.loads(oauth_path.read_text(encoding="utf-8"))
+                cid = (data.get("client_id") or "").strip()
+                if cid:
+                    return cid
+        except Exception:
+            pass
+        return DEFAULT_CLIENT_ID
 
     def is_authenticated(self) -> bool:
         tokens = self.store.load_tokens()

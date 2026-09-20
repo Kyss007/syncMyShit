@@ -92,7 +92,7 @@ const Content: FC = () => {
   >([]);
   const [syncing, setSyncing] = useState(false);
   const [syncTarget, setSyncTarget] = useState<string | null>(null);
-  const [version, setVersion] = useState("2.1.0");
+  const [version, setVersion] = useState("2.1.1");
   const [error, setError] = useState("");
 
   const refresh = useCallback(async () => {
@@ -108,7 +108,7 @@ const Content: FC = () => {
       setEmail(st.email || "");
       setAutoSync(!!st.auto_sync);
       setMonitoring(!!st.is_monitoring);
-      setVersion(st.version || "2.1.0");
+      setVersion(st.version || "2.1.1");
 
       try {
         const scan = await apiScan();
@@ -264,9 +264,10 @@ const Content: FC = () => {
                 {LOGIN_CMD}
               </div>
               <div style={{ color: C.muted }}>
-                4. Finish Google in the browser
+                First run asks for a Google <span style={{ color: C.text }}>Desktop</span> OAuth
+                Client ID (not the Android one — that causes invalid_request).
                 <br />
-                5. Return to Gaming Mode — this panel will show Connected
+                Then finish Google in the browser and return here.
               </div>
             </div>
           </PanelSectionRow>

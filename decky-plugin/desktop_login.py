@@ -2,13 +2,11 @@
 """
 syncMyShit — Google Drive login for Steam Deck Desktop Mode.
 
-Opens your normal desktop browser, completes OAuth on localhost,
-and writes tokens where the Decky plugin can find them.
+Uses a Desktop-type OAuth client (loopback). The Android client ID
+shipped with the phone app cannot use http://127.0.0.1 — Google returns
+"invalid_request".
 
-Usage (Desktop Mode Konsole):
-  python3 ~/homebrew/plugins/syncMyShit/desktop_login.py
-  # or:
-  ~/homebrew/plugins/syncMyShit/login-desktop.sh
+First run walks you through creating a Desktop OAuth client (2 minutes).
 """
 
 from __future__ import annotations
@@ -26,15 +24,27 @@ import urllib.request
 import webbrowser
 from pathlib import Path
 
-CLIENT_ID = "590448604558-6q54r4h31so9md160o2dlrpskna4sh7f.apps.googleusercontent.com"
 AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 USERINFO_ENDPOINT = "https://www.googleapis.com/oauth2/v3/userinfo"
 SCOPE = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email"
 
+# Android client — does NOT work for desktop loopback (invalid_request)
+ANDROID_CLIENT_ID = "590448604558-6q54r4h31so9md160o2dlrpskna4sh7f.apps.googleusercontent.com"
+
 
 def b64url(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+
+def config_dir() -> Path:
+    p = Path.home() / ".config" / "syncMyShit"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def oauth_config_path() -> Path:
+    return config_dir() / "oauth_desktop.json"
 
 
 def token_paths() -> list[Path]:
@@ -43,11 +53,45 @@ def token_paths() -> list[Path]:
         home / ".config" / "syncMyShit" / "drive_token.json",
         home / "homebrew" / "settings" / "syncMyShit" / "drive_token.json",
     ]
-    # Also cover common Decky settings location when run as deck
     decky = os.environ.get("DECKY_PLUGIN_SETTINGS_DIR")
     if decky:
         paths.insert(0, Path(decky) / "drive_token.json")
     return paths
+
+
+def load_desktop_client_id() -> str:
+    env = (os.environ.get("SYNCMYSHIT_CLIENT_ID") or "").strip()
+    if env and env != ANDROID_CLIENT_ID:
+        return env
+    path = oauth_config_path()
+    if path.exists():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            cid = (data.get("client_id") or "").strip()
+            if cid and cid != ANDROID_CLIENT_ID:
+                return cid
+        except Exception:
+            pass
+    return ""
+
+
+def save_desktop_client_id(client_id: str) -> None:
+    path = oauth_config_path()
+    path.write_text(json.dumps({"client_id": client_id.strip()}, indent=2), encoding="utf-8")
+    # Also mirror into Decky-readable config.json custom field
+    for cfg in (
+        config_dir() / "config.json",
+        Path.home() / "homebrew" / "settings" / "syncMyShit" / "config.json",
+    ):
+        try:
+            cfg.parent.mkdir(parents=True, exist_ok=True)
+            data = {}
+            if cfg.exists():
+                data = json.loads(cfg.read_text(encoding="utf-8"))
+            data["custom_oauth_client_id"] = client_id.strip()
+            cfg.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        except Exception:
+            pass
 
 
 def save_tokens(tokens: dict) -> None:
@@ -73,12 +117,63 @@ def http_response(conn: socket.socket, status: int, body: str, content_type: str
     conn.sendall(header.encode("utf-8") + data)
 
 
+def prompt_for_desktop_client_id() -> str:
+    print("")
+    print("----------------------------------------------------------------")
+    print(" ONE-TIME SETUP — Google Desktop OAuth client")
+    print("----------------------------------------------------------------")
+    print("")
+    print("The Android app Client ID cannot log in from a PC browser.")
+    print("You need a \"Desktop app\" client in the same Google Cloud project.")
+    print("")
+    print("1. Open: https://console.cloud.google.com/apis/credentials")
+    print("2. Select your syncMyShit project (or create one)")
+    print("3. Enable \"Google Drive API\" if asked")
+    print("4. Create Credentials → OAuth client ID")
+    print("5. Application type: Desktop app")
+    print("6. Name: syncMyShit-Deck")
+    print("7. Create → copy the Client ID")
+    print("   (looks like: xxxxx.apps.googleusercontent.com)")
+    print("")
+    print("Also add yourself as a Test user under OAuth consent screen")
+    print("if the app is still in Testing mode.")
+    print("")
+    try:
+        webbrowser.open("https://console.cloud.google.com/apis/credentials")
+    except Exception:
+        pass
+
+    while True:
+        cid = input("Paste Desktop Client ID here: ").strip()
+        if not cid:
+            print("Empty — try again, or Ctrl+C to cancel.")
+            continue
+        if cid == ANDROID_CLIENT_ID:
+            print("That's the Android client ID — it will keep failing.")
+            print("Create a Desktop app client and paste that one.")
+            continue
+        if ".apps.googleusercontent.com" not in cid:
+            print("That doesn't look like a Google Client ID. Try again.")
+            continue
+        save_desktop_client_id(cid)
+        print(f"Saved Desktop Client ID → {oauth_config_path()}")
+        return cid
+
+
 def main() -> int:
     print("")
     print("==============================================")
     print("  syncMyShit — Desktop Mode Google Login")
     print("==============================================")
     print("")
+
+    client_id = load_desktop_client_id()
+    if not client_id:
+        client_id = prompt_for_desktop_client_id()
+    else:
+        print(f"Using Desktop Client ID: {client_id[:20]}…{client_id[-20:]}")
+        print(f"(change anytime: delete {oauth_config_path()})")
+        print("")
 
     verifier = b64url(secrets.token_bytes(48))
     challenge = b64url(hashlib.sha256(verifier.encode("ascii")).digest())
@@ -101,7 +196,7 @@ def main() -> int:
     sock.listen(5)
     redirect_uri = f"http://127.0.0.1:{port}/"
     params = {
-        "client_id": CLIENT_ID,
+        "client_id": client_id,
         "redirect_uri": redirect_uri,
         "response_type": "code",
         "scope": SCOPE,
@@ -116,14 +211,14 @@ def main() -> int:
     print(f"Listening on {redirect_uri}")
     print("Opening your browser…")
     print("")
-    print("If the browser does not open, paste this URL into Firefox/Chrome:")
+    print("If the browser does not open, paste this URL into Firefox:")
     print(auth_url)
     print("")
 
     try:
         webbrowser.open(auth_url)
     except Exception as e:
-        print(f"(webbrowser.open failed: {e} — use the URL above)")
+        print(f"(webbrowser.open failed: {e})")
 
     result: dict = {"done": False, "error": None, "tokens": None}
 
@@ -151,7 +246,7 @@ def main() -> int:
                     if "code" in qs:
                         code = qs["code"][0]
                         data = {
-                            "client_id": CLIENT_ID,
+                            "client_id": client_id,
                             "code": code,
                             "grant_type": "authorization_code",
                             "redirect_uri": redirect_uri,
@@ -163,7 +258,7 @@ def main() -> int:
                             data=body,
                             headers={
                                 "Content-Type": "application/x-www-form-urlencoded",
-                                "User-Agent": "syncMyShit-DesktopLogin/2.1",
+                                "User-Agent": "syncMyShit-DesktopLogin/2.1.1",
                             },
                         )
                         with urllib.request.urlopen(treq, timeout=20) as resp:
@@ -178,7 +273,7 @@ def main() -> int:
                                 USERINFO_ENDPOINT,
                                 headers={
                                     "Authorization": f"Bearer {access}",
-                                    "User-Agent": "syncMyShit-DesktopLogin/2.1",
+                                    "User-Agent": "syncMyShit-DesktopLogin/2.1.1",
                                 },
                             )
                             with urllib.request.urlopen(ureq, timeout=10) as uresp:
@@ -192,6 +287,7 @@ def main() -> int:
                             "expires_at": time.time() + expires_in,
                             "email": email,
                             "connected_at": int(time.time()),
+                            "client_id": client_id,
                         }
                         save_tokens(tokens)
                         result["tokens"] = tokens
@@ -200,21 +296,22 @@ def main() -> int:
                             200,
                             f"""<!DOCTYPE html><html><body style="font-family:sans-serif;background:#061018;color:#eaf6fb;display:flex;align-items:center;justify-content:center;min-height:100vh">
                             <div style="text-align:center"><h1 style="color:#3dff9a">Linked as {email}</h1>
-                            <p>You can close this tab and return to Gaming Mode.</p>
-                            <p>Open Decky → syncMyShit to sync.</p></div></body></html>""",
+                            <p>Close this tab. Return to Gaming Mode → Decky → syncMyShit.</p></div></body></html>""",
                         )
                         result["done"] = True
                     elif "error" in qs:
                         err = qs.get("error", ["unknown"])[0]
-                        result["error"] = err
-                        http_response(conn, 400, f"<h1>Auth error</h1><p>{err}</p>")
-                        result["done"] = True
-                    else:
+                        desc = (qs.get("error_description") or [""])[0]
+                        result["error"] = f"{err}: {desc}".strip(": ")
                         http_response(
                             conn,
-                            200,
-                            "<h1>syncMyShit</h1><p>Waiting for Google redirect…</p>",
+                            400,
+                            f"<h1>Auth error</h1><p>{err}</p><p>{desc}</p>"
+                            "<p>If this is invalid_request, your Client ID is not a Desktop app type.</p>",
                         )
+                        result["done"] = True
+                    else:
+                        http_response(conn, 200, "<h1>syncMyShit</h1><p>Waiting for Google…</p>")
                 finally:
                     try:
                         conn.close()
@@ -227,7 +324,7 @@ def main() -> int:
     t = threading.Thread(target=serve, daemon=True)
     t.start()
 
-    print("Waiting for Google sign-in in your browser (up to 5 minutes)…")
+    print("Waiting for Google sign-in (up to 5 minutes)…")
     deadline = time.time() + 300
     while not result["done"] and time.time() < deadline:
         time.sleep(0.25)
@@ -241,12 +338,22 @@ def main() -> int:
         email = result["tokens"].get("email", "")
         print("")
         print(f"SUCCESS — signed in as {email}")
-        print("Switch back to Gaming Mode → Quick Access → syncMyShit.")
+        print("Switch to Gaming Mode → Quick Access → syncMyShit.")
         print("")
         return 0
 
+    err = result.get("error") or "timed out / cancelled"
     print("")
-    print(f"FAILED — {result.get('error') or 'timed out / cancelled'}")
+    print(f"FAILED — {err}")
+    if "invalid_request" in str(err).lower() or "invalid_client" in str(err).lower():
+        print("")
+        print("Your Client ID is probably NOT type \"Desktop app\".")
+        print(f"Delete {oauth_config_path()} and run this script again.")
+        print("Create a new OAuth client with Application type = Desktop app.")
+        try:
+            oauth_config_path().unlink(missing_ok=True)
+        except Exception:
+            pass
     print("")
     return 1
 

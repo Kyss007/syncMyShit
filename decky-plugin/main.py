@@ -18,7 +18,7 @@ if _PY not in sys.path:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("syncMyShit")
 
-PLUGIN_VERSION = "2.1.0"
+PLUGIN_VERSION = "2.1.1"
 
 
 class Plugin:

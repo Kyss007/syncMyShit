@@ -2,7 +2,7 @@
   "name": "syncMyShit",
   "author": "Kyss007",
   "flags": [],
-  "version": "2.1.0",
+  "version": "2.1.1",
   "api_version": 1,
   "description": "Cloud save sync for Steam Deck — login in Desktop Mode, sync in Game Mode",
   "publish": {
