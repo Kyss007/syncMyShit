@@ -42,7 +42,7 @@ var require_react = __commonJS({
 var import_ui = __toESM(require_ui(), 1);
 
 // decky-manifest:@decky/manifest
-var manifest_default = { "name": "syncMyShit", "author": "Kyss007", "flags": [], "version": "1.0.21", "api_version": 1, "description": "Automagic retro emulator cloud save sync for Steam Deck, Android, & PC", "publish": { "tags": ["cloud", "save", "sync", "emulation", "gaming"], "description": "Automagic retro emulator cloud save sync across Steam Deck, Android, and PC with zero save-loss protection.", "image": "https://raw.githubusercontent.com/Kyss007/syncMyShit/main/docs/banner.png" } };
+var manifest_default = { "name": "syncMyShit", "author": "Kyss007", "flags": [], "version": "1.0.22", "api_version": 1, "description": "Automagic retro emulator cloud save sync for Steam Deck, Android, & PC", "publish": { "tags": ["cloud", "save", "sync", "emulation", "gaming"], "description": "Automagic retro emulator cloud save sync across Steam Deck, Android, and PC with zero save-loss protection.", "image": "https://raw.githubusercontent.com/Kyss007/syncMyShit/main/docs/banner.png" } };
 
 // decky-plugin/node_modules/@decky/api/dist/index.js
 var manifest = manifest_default;
@@ -353,25 +353,36 @@ var Content = () => {
     }, 2e3);
     return () => clearInterval(interval);
   }, [loggingIn]);
-  const launchBrowser = async (url) => {
+  const openSteamBrowser = async (url) => {
     if (!url) return;
+    const win = window;
     apiOpenBrowser(url).catch((e) => console.warn("[syncMyShit] apiOpenBrowser failed:", e));
     try {
-      import_ui.Navigation.NavigateToExternalWeb(url);
-    } catch (e) {
-      console.warn("[syncMyShit] NavigateToExternalWeb failed:", e);
-    }
-    try {
-      import_ui.Navigation.NavigateToSteamWeb(url);
+      if (typeof import_ui.Navigation?.NavigateToSteamWeb === "function") {
+        import_ui.Navigation.NavigateToSteamWeb(url);
+      }
     } catch (e) {
       console.warn("[syncMyShit] NavigateToSteamWeb failed:", e);
     }
     try {
-      window.open(url, "_blank");
+      if (typeof import_ui.Navigation?.NavigateToExternalWeb === "function") {
+        import_ui.Navigation.NavigateToExternalWeb(url);
+      }
+    } catch (e) {
+      console.warn("[syncMyShit] NavigateToExternalWeb failed:", e);
+    }
+    try {
+      if (typeof win.SteamClient?.System?.OpenURLInSystemBrowser === "function") {
+        win.SteamClient.System.OpenURLInSystemBrowser(url);
+      } else if (typeof win.SteamClient?.System?.OpenBrowser === "function") {
+        win.SteamClient.System.OpenBrowser(url);
+      } else if (typeof win.SteamClient?.Shell?.OpenURL === "function") {
+        win.SteamClient.Shell.OpenURL(url);
+      }
     } catch (e) {
     }
     try {
-      import_ui.Navigation.CloseSideMenus();
+      window.open(url, "_blank");
     } catch (e) {
     }
   };
@@ -381,11 +392,11 @@ var Content = () => {
       const res = await apiStartGoogleLogin();
       if (res.success && res.auth_url) {
         setAuthUrl(res.auth_url);
-        await launchBrowser(res.auth_url);
+        await openSteamBrowser(res.auth_url);
         toaster.toast({
-          title: "Browser Opened",
-          body: "Complete sign-in in the browser, then return to Gaming Mode.",
-          duration: 7e3
+          title: "Opening Steam Browser",
+          body: "Sign in with Google to connect your account.",
+          duration: 5e3
         });
       } else {
         setLoggingIn(false);
@@ -631,9 +642,9 @@ var Content = () => {
       import_ui.ButtonItem,
       {
         layout: "below",
-        onClick: () => launchBrowser(authUrl)
+        onClick: () => openSteamBrowser(authUrl)
       },
-      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaExternalLinkAlt, { size: 12 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, "\u{1F310} Re-open Browser Window"))
+      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaExternalLinkAlt, { size: 12 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, "\u{1F310} Open in Steam Browser"))
     )), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
       import_ui.ButtonItem,
       {
@@ -800,7 +811,7 @@ var Content = () => {
       },
       /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaTrashAlt, { size: 11 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, "Clear Activity Log"))
     ))),
-    /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSection, { title: "Plugin Info" }, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.Field, { label: "Version", description: "syncMyShit Decky Plugin" }, /* @__PURE__ */ window.SP_REACT.createElement("span", { style: { color: "#38bdf8", fontWeight: 700, fontSize: "12px" } }, "v1.0.21"))), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
+    /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSection, { title: "Plugin Info" }, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.Field, { label: "Version", description: "syncMyShit Decky Plugin" }, /* @__PURE__ */ window.SP_REACT.createElement("span", { style: { color: "#38bdf8", fontWeight: 700, fontSize: "12px" } }, "v1.0.22"))), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
       "div",
       {
         style: {

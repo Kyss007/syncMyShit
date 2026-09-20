@@ -207,34 +207,46 @@ const Content: FC = () => {
     return () => clearInterval(interval);
   }, [loggingIn]);
 
-  // Launch browser on the machine via multiple pathways
-  const launchBrowser = async (url: string) => {
+  // Launch the Steam browser for Google sign-in
+  const openSteamBrowser = async (url: string) => {
     if (!url) return;
+    const win = window as any;
 
-    // 1. Backend process launch (steam://openurl, xdg-open, flatpak as user deck)
+    // 1. Tell backend to invoke steam steam://openurl/<url>
     apiOpenBrowser(url).catch((e) => console.warn("[syncMyShit] apiOpenBrowser failed:", e));
 
-    // 2. Steam GamepadUI Navigation APIs
+    // 2. Navigation.NavigateToSteamWeb (Steam client's internal web browser)
     try {
-      Navigation.NavigateToExternalWeb(url);
-    } catch (e) {
-      console.warn("[syncMyShit] NavigateToExternalWeb failed:", e);
-    }
-
-    try {
-      Navigation.NavigateToSteamWeb(url);
+      if (typeof Navigation?.NavigateToSteamWeb === "function") {
+        Navigation.NavigateToSteamWeb(url);
+      }
     } catch (e) {
       console.warn("[syncMyShit] NavigateToSteamWeb failed:", e);
     }
 
-    // 3. Fallback window.open
+    // 3. Navigation.NavigateToExternalWeb (Steam GamepadUI external browser modal)
     try {
-      window.open(url, "_blank");
+      if (typeof Navigation?.NavigateToExternalWeb === "function") {
+        Navigation.NavigateToExternalWeb(url);
+      }
+    } catch (e) {
+      console.warn("[syncMyShit] NavigateToExternalWeb failed:", e);
+    }
+
+    // 4. SteamClient methods
+    try {
+      if (typeof win.SteamClient?.System?.OpenURLInSystemBrowser === "function") {
+        win.SteamClient.System.OpenURLInSystemBrowser(url);
+      } else if (typeof win.SteamClient?.System?.OpenBrowser === "function") {
+        win.SteamClient.System.OpenBrowser(url);
+      } else if (typeof win.SteamClient?.Shell?.OpenURL === "function") {
+        win.SteamClient.Shell.OpenURL(url);
+      }
     } catch (e) {}
 
-    // 4. Close side menu so the browser window is visible
+    // 5. Fallback window.open
     try {
-      Navigation.CloseSideMenus();
+      window.open(url, "_blank");
     } catch (e) {}
   };
 
@@ -245,11 +257,11 @@ const Content: FC = () => {
       const res = await apiStartGoogleLogin();
       if (res.success && res.auth_url) {
         setAuthUrl(res.auth_url);
-        await launchBrowser(res.auth_url);
+        await openSteamBrowser(res.auth_url);
         toaster.toast({
-          title: "Browser Opened",
-          body: "Complete sign-in in the browser, then return to Gaming Mode.",
-          duration: 7000,
+          title: "Opening Steam Browser",
+          body: "Sign in with Google to connect your account.",
+          duration: 5000,
         });
       } else {
         setLoggingIn(false);
@@ -556,11 +568,11 @@ const Content: FC = () => {
                 <PanelSectionRow>
                   <ButtonItem
                     layout="below"
-                    onClick={() => launchBrowser(authUrl)}
+                    onClick={() => openSteamBrowser(authUrl)}
                   >
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" }}>
                       <FaExternalLinkAlt size={12} />
-                      <span>🌐 Re-open Browser Window</span>
+                      <span>🌐 Open in Steam Browser</span>
                     </div>
                   </ButtonItem>
                 </PanelSectionRow>
@@ -817,7 +829,7 @@ const Content: FC = () => {
       <PanelSection title="Plugin Info">
         <PanelSectionRow>
           <Field label="Version" description="syncMyShit Decky Plugin">
-            <span style={{ color: "#38bdf8", fontWeight: 700, fontSize: "12px" }}>v1.0.21</span>
+            <span style={{ color: "#38bdf8", fontWeight: 700, fontSize: "12px" }}>v1.0.22</span>
           </Field>
         </PanelSectionRow>
 

@@ -97,6 +97,14 @@ class GoogleOAuthManager:
         tokens = self.load_tokens()
         return bool(tokens and (tokens.get("access_token") or tokens.get("refresh_token")))
 
+    def is_authenticating(self) -> bool:
+        """Returns True if the OAuth loopback server is actively running."""
+        return self._server is not None and bool(getattr(self, "_auth_url", ""))
+
+    def get_auth_url(self) -> str:
+        """Returns the current pending authorization URL."""
+        return getattr(self, "_auth_url", "")
+
     def load_tokens(self) -> Optional[Dict[str, Any]]:
         """Loads saved OAuth tokens from drive_token.json."""
         if not self.token_file.exists():

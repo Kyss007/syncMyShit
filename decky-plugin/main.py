@@ -211,13 +211,17 @@ class Plugin:
         # If authenticated, clear auth in progress
         if is_auth:
             self._auth_in_progress = False
+            self._current_auth_url = ""
+
+        # Robustly detect auth in progress from either Plugin or GoogleOAuthManager
+        is_authenticating = (self._auth_in_progress or self.oauth_mgr.is_authenticating()) and not is_auth
+        auth_url = self._current_auth_url or self.oauth_mgr.get_auth_url()
 
         return {
             "success": True,
             "is_authenticated": is_auth,
-            "is_authenticating": self._auth_in_progress,
-            "auth_url": self._current_auth_url if self._auth_in_progress else "",
-            "mobile_url": self._current_mobile_url if self._auth_in_progress else "",
+            "is_authenticating": is_authenticating,
+            "auth_url": auth_url if is_authenticating else "",
             "email": email,
             "drive_folder": "syncMyShit",
             "auto_sync": self.config.get("auto_sync_on_process", True),
@@ -313,73 +317,77 @@ class Plugin:
         import shutil
         import subprocess
 
-        env = os.environ.copy()
-        env["USER"] = "deck"
-        env["HOME"] = "/home/deck"
-        env["XDG_RUNTIME_DIR"] = "/run/user/1000"
-        env["DBUS_SESSION_BUS_ADDRESS"] = "unix:path=/run/user/1000/bus"
-        if "DISPLAY" not in env:
-            env["DISPLAY"] = ":0"
-        if "WAYLAND_DISPLAY" not in env:
-            env["WAYLAND_DISPLAY"] = "wayland-0"
+        try:
+            env = os.environ.copy()
+            env["USER"] = "deck"
+            env["HOME"] = "/home/deck"
+            env["XDG_RUNTIME_DIR"] = "/run/user/1000"
+            env["DBUS_SESSION_BUS_ADDRESS"] = "unix:path=/run/user/1000/bus"
+            if "DISPLAY" not in env:
+                env["DISPLAY"] = ":0"
+            if "WAYLAND_DISPLAY" not in env:
+                env["WAYLAND_DISPLAY"] = "wayland-0"
 
-        opened = False
+            opened = False
 
-        # 1. Steam Protocol (works inside Steam Game Mode)
-        steam_bin = shutil.which("steam")
-        if steam_bin:
-            try:
-                logger.info(f"[syncMyShit] Launching via Steam protocol: steam://openurl/{url}")
-                subprocess.Popen(
-                    ["sudo", "-u", "deck", steam_bin, f"steam://openurl/{url}"],
-                    env=env,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-                opened = True
-            except Exception as e:
-                logger.warning(f"[syncMyShit] Steam protocol call failed: {e}")
-
-        # 2. xdg-open
-        xdg_bin = shutil.which("xdg-open")
-        if xdg_bin:
-            try:
-                logger.info(f"[syncMyShit] Launching via xdg-open: {url}")
-                subprocess.Popen(
-                    ["sudo", "-u", "deck", xdg_bin, url],
-                    env=env,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-                opened = True
-            except Exception as e:
-                logger.warning(f"[syncMyShit] xdg-open call failed: {e}")
-
-        # 3. Flatpak browsers (Firefox, Chrome, Edge, etc.)
-        flatpak_bin = shutil.which("flatpak")
-        if flatpak_bin:
-            for app_id in ["org.mozilla.firefox", "com.google.Chrome", "com.microsoft.Edge", "com.brave.Browser"]:
+            # 1. Steam Protocol (works inside Steam Game Mode)
+            steam_bin = shutil.which("steam") or "/usr/bin/steam"
+            if steam_bin and os.path.exists(steam_bin):
                 try:
-                    res = subprocess.run(
-                        ["sudo", "-u", "deck", flatpak_bin, "info", app_id],
+                    logger.info(f"[syncMyShit] Launching via Steam protocol: steam://openurl/{url}")
+                    subprocess.Popen(
+                        ["sudo", "-u", "deck", "-E", steam_bin, f"steam://openurl/{url}"],
                         env=env,
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
                     )
-                    if res.returncode == 0:
-                        logger.info(f"[syncMyShit] Launching flatpak browser: {app_id}")
-                        subprocess.Popen(
-                            ["sudo", "-u", "deck", flatpak_bin, "run", app_id, url],
+                    opened = True
+                except Exception as e:
+                    logger.warning(f"[syncMyShit] Steam protocol call failed: {e}")
+
+            # 2. xdg-open
+            xdg_bin = shutil.which("xdg-open")
+            if xdg_bin:
+                try:
+                    logger.info(f"[syncMyShit] Launching via xdg-open: {url}")
+                    subprocess.Popen(
+                        ["sudo", "-u", "deck", "-E", xdg_bin, url],
+                        env=env,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                    opened = True
+                except Exception as e:
+                    logger.warning(f"[syncMyShit] xdg-open call failed: {e}")
+
+            # 3. Flatpak browsers (Firefox, Chrome, Edge, etc.)
+            flatpak_bin = shutil.which("flatpak")
+            if flatpak_bin:
+                for app_id in ["org.mozilla.firefox", "com.google.Chrome", "com.microsoft.Edge", "com.brave.Browser"]:
+                    try:
+                        res = subprocess.run(
+                            ["sudo", "-u", "deck", "-E", flatpak_bin, "info", app_id],
                             env=env,
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL,
                         )
-                        opened = True
-                        break
-                except Exception:
-                    pass
+                        if res.returncode == 0:
+                            logger.info(f"[syncMyShit] Launching flatpak browser: {app_id}")
+                            subprocess.Popen(
+                                ["sudo", "-u", "deck", "-E", flatpak_bin, "run", app_id, url],
+                                env=env,
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL,
+                            )
+                            opened = True
+                            break
+                    except Exception:
+                        pass
 
-        return opened
+            return opened
+        except Exception as e:
+            logger.warning(f"[syncMyShit] _open_system_browser encountered error: {e}")
+            return False
 
     async def open_browser(self, url: str = "") -> Dict[str, Any]:
         """RPC endpoint to open browser on the Steam Deck."""
@@ -393,27 +401,26 @@ class Plugin:
         """Starts local OAuth loopback listener and launches browser on the Steam Deck."""
         try:
             # If already running, return existing URLs and re-trigger browser
-            if self._auth_in_progress and self._current_auth_url:
-                self._open_system_browser(self._current_auth_url)
+            if (self._auth_in_progress or self.oauth_mgr.is_authenticating()) and (self._current_auth_url or self.oauth_mgr.get_auth_url()):
+                auth_url = self._current_auth_url or self.oauth_mgr.get_auth_url()
+                self._auth_in_progress = True
+                self._current_auth_url = auth_url
+                threading.Thread(target=self._open_system_browser, args=(auth_url,), daemon=True).start()
                 return {
                     "success": True,
-                    "auth_url": self._current_auth_url,
-                    "mobile_url": self._current_mobile_url,
+                    "auth_url": auth_url,
                 }
 
             auth_url = self.oauth_mgr.start_auth_flow()
-            mobile_url = self.oauth_mgr.get_mobile_url()
             self._auth_in_progress = True
             self._current_auth_url = auth_url
-            self._current_mobile_url = mobile_url
 
-            # Automatically launch browser on the device
-            self._open_system_browser(auth_url)
+            # Automatically launch browser on the device in a background thread
+            threading.Thread(target=self._open_system_browser, args=(auth_url,), daemon=True).start()
 
-            return {"success": True, "auth_url": auth_url, "mobile_url": mobile_url}
+            return {"success": True, "auth_url": auth_url}
         except Exception as e:
             logger.error(f"[syncMyShit] Failed to start Google login: {e}", exc_info=True)
-            self._auth_in_progress = False
             return {"success": False, "error": str(e)}
 
     async def cancel_google_login(self) -> Dict[str, Any]:
