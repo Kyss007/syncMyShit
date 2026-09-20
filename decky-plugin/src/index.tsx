@@ -9,7 +9,8 @@ import {
 } from "@decky/ui";
 import { callable, definePlugin, toaster } from "@decky/api";
 import { useEffect, useState, FC } from "react";
-import QRCode from "qrcode";
+
+
 import {
   FaCheckCircle,
   FaExclamationCircle,
@@ -152,9 +153,15 @@ const Content: FC = () => {
   const [loggingIn, setLoggingIn] = useState<boolean>(false);
   const [authUrl, setAuthUrl] = useState<string>("");
   const [mobileUrl, setMobileUrl] = useState<string>("");
-  const [qrSvg, setQrSvg] = useState<string>("");
   const [manualCode, setManualCode] = useState<string>("");
   const [showManualCode, setShowManualCode] = useState<boolean>(false);
+
+  // Derived: QR image URL pointing at phone companion page (or direct auth URL)
+  // Uses api.qrserver.com — a free QR image API, internet already required for Drive
+  const qrTarget = mobileUrl || authUrl;
+  const qrImgUrl = qrTarget
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=190x190&margin=8&data=${encodeURIComponent(qrTarget)}`
+    : "";
 
   // Load status and emulator scans
   const refreshData = async () => {
@@ -170,7 +177,6 @@ const Content: FC = () => {
           setAuthUrl("");
           setMobileUrl("");
           setLoggingIn(false);
-          setQrSvg("");
         } else if (st.is_authenticating && (st.mobile_url || st.auth_url)) {
           // Persist login state even after QAM closed and reopened
           setLoggingIn(true);
@@ -205,7 +211,6 @@ const Content: FC = () => {
           setLoggingIn(false);
           setAuthUrl("");
           setMobileUrl("");
-          setQrSvg("");
           toaster.toast({
             title: "Google Drive Connected!",
             body: `Signed in as ${st.email}`,
@@ -219,42 +224,6 @@ const Content: FC = () => {
     }, 2000);
     return () => clearInterval(interval);
   }, [loggingIn]);
-
-  // Build a QR code SVG purely from the module matrix — no canvas, no async, no renderer
-  const buildQrSvg = (url: string): string => {
-    try {
-      const qr = (QRCode as any).create(url, { errorCorrectionLevel: "M" });
-      const size: number = qr.modules.size;
-      const data: Uint8ClampedArray = qr.modules.data;
-      const cell = 5;
-      const margin = 10;
-      const dim = size * cell + margin * 2;
-      let rects = "";
-      for (let r = 0; r < size; r++) {
-        for (let c = 0; c < size; c++) {
-          if (data[r * size + c]) {
-            rects += `<rect x="${margin + c * cell}" y="${margin + r * cell}" width="${cell}" height="${cell}"/>`;
-          }
-        }
-      }
-      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${dim} ${dim}" style="width:100%;height:100%;display:block;background:#fff"><g fill="#000">${rects}</g></svg>`;
-    } catch (err) {
-      console.error("[syncMyShit] QR matrix generation failed:", err);
-      return "";
-    }
-  };
-
-  // Set QR SVG whenever login state or URLs change
-  useEffect(() => {
-    if (!loggingIn) {
-      setQrSvg("");
-      return;
-    }
-    const target = mobileUrl || authUrl;
-    if (target) {
-      setQrSvg(buildQrSvg(target));
-    }
-  }, [loggingIn, authUrl, mobileUrl]);
 
   // Start Google Drive OAuth Login
   const handleStartGoogleLogin = async () => {
@@ -292,7 +261,6 @@ const Content: FC = () => {
     setLoggingIn(false);
     setAuthUrl("");
     setMobileUrl("");
-    setQrSvg("");
     try {
       await apiCancelGoogleLogin();
     } catch (e) {}
@@ -577,57 +545,60 @@ const Content: FC = () => {
               </>
             ) : (
               <>
-                {/* QR Code Display - uses inline SVG, no canvas needed */}
-                {qrSvg ? (
-                  <PanelSectionRow>
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        width: "100%",
-                        boxSizing: "border-box",
-                        background: "rgba(0, 0, 0, 0.3)",
-                        padding: "10px",
-                        borderRadius: "8px",
-                      }}
-                    >
+                {/* QR Code — loaded as image from QR API service */}
+                <PanelSectionRow>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "100%",
+                      boxSizing: "border-box",
+                      background: "rgba(0, 0, 0, 0.3)",
+                      padding: "10px",
+                      borderRadius: "8px",
+                    }}
+                  >
+                    {qrImgUrl ? (
                       <div
-                        dangerouslySetInnerHTML={{ __html: qrSvg }}
                         style={{
                           background: "#ffffff",
-                          padding: "8px",
+                          padding: "6px",
                           borderRadius: "8px",
                           boxShadow: "0 4px 14px rgba(0,0,0,0.6)",
                           display: "inline-block",
-                          width: "180px",
-                          height: "180px",
-                        }}
-                      />
-                      <div
-                        style={{
-                          fontSize: "11px",
-                          color: "#cbd5e1",
-                          lineHeight: 1.4,
-                          textAlign: "center",
-                          width: "100%",
-                          marginTop: "8px",
                         }}
                       >
-                        <strong>1.</strong> Scan with phone camera<br />
-                        <strong>2.</strong> Tap <em>Sign in with Google</em> on phone<br />
-                        <strong>3.</strong> Paste callback link &amp; tap Connect!
+                        <img
+                          src={qrImgUrl}
+                          width={190}
+                          height={190}
+                          style={{ display: "block" }}
+                          alt="Scan to sign in with Google"
+                        />
                       </div>
+                    ) : (
+                      <div style={{ fontSize: "12px", color: "#94a3b8", padding: "20px 0" }}>
+                        Starting sign-in server...
+                      </div>
+                    )}
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        color: "#cbd5e1",
+                        lineHeight: 1.4,
+                        textAlign: "center",
+                        width: "100%",
+                        marginTop: "8px",
+                      }}
+                    >
+                      <strong>1.</strong> Scan with phone camera<br />
+                      <strong>2.</strong> Tap <em>Sign in with Google</em> on phone<br />
+                      <strong>3.</strong> Paste callback link &amp; tap Connect!
                     </div>
-                  </PanelSectionRow>
-                ) : (
-                  <PanelSectionRow>
-                    <div style={{ fontSize: "12px", color: "#94a3b8", textAlign: "center", padding: "8px 0" }}>
-                      Generating QR code...
-                    </div>
-                  </PanelSectionRow>
-                )}
+                  </div>
+                </PanelSectionRow>
 
 
                 {/* Copy Link */}
@@ -884,7 +855,7 @@ const Content: FC = () => {
       <PanelSection title="Plugin Info">
         <PanelSectionRow>
           <Field label="Version" description="syncMyShit Decky Plugin">
-            <span style={{ color: "#38bdf8", fontWeight: 700, fontSize: "12px" }}>v1.0.19</span>
+            <span style={{ color: "#38bdf8", fontWeight: 700, fontSize: "12px" }}>v1.0.20</span>
           </Field>
         </PanelSectionRow>
 
