@@ -42,7 +42,7 @@ var require_react = __commonJS({
 var import_ui = __toESM(require_ui(), 1);
 
 // decky-manifest:@decky/manifest
-var manifest_default = { "name": "syncMyShit", "author": "Kyss007", "flags": [], "version": "1.0.15", "api_version": 1, "description": "Automagic retro emulator cloud save sync for Steam Deck, Android, & PC", "publish": { "tags": ["cloud", "save", "sync", "emulation", "gaming"], "description": "Automagic retro emulator cloud save sync across Steam Deck, Android, and PC with zero save-loss protection.", "image": "https://raw.githubusercontent.com/Kyss007/syncMyShit/main/docs/banner.png" } };
+var manifest_default = { "name": "syncMyShit", "author": "Kyss007", "flags": [], "version": "1.0.16", "api_version": 1, "description": "Automagic retro emulator cloud save sync for Steam Deck, Android, & PC", "publish": { "tags": ["cloud", "save", "sync", "emulation", "gaming"], "description": "Automagic retro emulator cloud save sync across Steam Deck, Android, and PC with zero save-loss protection.", "image": "https://raw.githubusercontent.com/Kyss007/syncMyShit/main/docs/banner.png" } };
 
 // decky-plugin/node_modules/@decky/api/dist/index.js
 var manifest = manifest_default;
@@ -208,6 +208,9 @@ function FaGoogle(props) {
 function FaTrashAlt(props) {
   return GenIcon({ "tag": "svg", "attr": { "viewBox": "0 0 448 512" }, "child": [{ "tag": "path", "attr": { "d": "M32 464a48 48 0 0 0 48 48h288a48 48 0 0 0 48-48V128H32zm272-256a16 16 0 0 1 32 0v224a16 16 0 0 1-32 0zm-96 0a16 16 0 0 1 32 0v224a16 16 0 0 1-32 0zm-96 0a16 16 0 0 1 32 0v224a16 16 0 0 1-32 0zM432 32H312l-9.4-18.7A24 24 0 0 0 281.1 0H166.8a23.72 23.72 0 0 0-21.4 13.3L136 32H16A16 16 0 0 0 0 48v32a16 16 0 0 0 16 16h416a16 16 0 0 0 16-16V48a16 16 0 0 0-16-16z" }, "child": [] }] })(props);
 }
+function FaTimes(props) {
+  return GenIcon({ "tag": "svg", "attr": { "viewBox": "0 0 352 512" }, "child": [{ "tag": "path", "attr": { "d": "M242.72 256l100.07-100.07c12.28-12.28 12.28-32.19 0-44.48l-22.24-22.24c-12.28-12.28-32.19-12.28-44.48 0L176 189.28 75.93 89.21c-12.28-12.28-32.19-12.28-44.48 0L9.21 111.45c-12.28 12.28-12.28 32.19 0 44.48L109.28 256 9.21 356.07c-12.28 12.28-12.28 32.19 0 44.48l22.24 22.24c12.28 12.28 32.2 12.28 44.48 0L176 322.72l100.07 100.07c12.28 12.28 32.2 12.28 44.48 0l22.24-22.24c12.28-12.28 12.28-32.19 0-44.48L242.72 256z" }, "child": [] }] })(props);
+}
 function FaSyncAlt(props) {
   return GenIcon({ "tag": "svg", "attr": { "viewBox": "0 0 512 512" }, "child": [{ "tag": "path", "attr": { "d": "M370.72 133.28C339.458 104.008 298.888 87.962 255.848 88c-77.458.068-144.328 53.178-162.791 126.85-1.344 5.363-6.122 9.15-11.651 9.15H24.103c-7.498 0-13.194-6.807-11.807-14.176C33.933 94.924 134.813 8 256 8c66.448 0 126.791 26.136 171.315 68.685L463.03 40.97C478.149 25.851 504 36.559 504 57.941V192c0 13.255-10.745 24-24 24H345.941c-21.382 0-32.09-25.851-16.971-40.971l41.75-41.749zM32 296h134.059c21.382 0 32.09 25.851 16.971 40.971l-41.75 41.75c31.262 29.273 71.835 45.319 114.876 45.28 77.418-.07 144.315-53.144 162.787-126.849 1.344-5.363 6.122-9.15 11.651-9.15h57.304c7.498 0 13.194 6.807 11.807 14.176C478.067 417.076 377.187 504 256 504c-66.448 0-126.791-26.136-171.315-68.685L48.97 471.03C33.851 486.149 8 475.441 8 454.059V320c0-13.255 10.745-24 24-24z" }, "child": [] }] })(props);
 }
@@ -220,14 +223,17 @@ function FaKey(props) {
 function FaGamepad(props) {
   return GenIcon({ "tag": "svg", "attr": { "viewBox": "0 0 640 512" }, "child": [{ "tag": "path", "attr": { "d": "M480.07 96H160a160 160 0 1 0 114.24 272h91.52A160 160 0 1 0 480.07 96zM248 268a12 12 0 0 1-12 12h-52v52a12 12 0 0 1-12 12h-24a12 12 0 0 1-12-12v-52H84a12 12 0 0 1-12-12v-24a12 12 0 0 1 12-12h52v-52a12 12 0 0 1 12-12h24a12 12 0 0 1 12 12v52h52a12 12 0 0 1 12 12zm216 76a40 40 0 1 1 40-40 40 40 0 0 1-40 40zm64-96a40 40 0 1 1 40-40 40 40 0 0 1-40 40z" }, "child": [] }] })(props);
 }
+function FaExternalLinkAlt(props) {
+  return GenIcon({ "tag": "svg", "attr": { "viewBox": "0 0 512 512" }, "child": [{ "tag": "path", "attr": { "d": "M432,320H400a16,16,0,0,0-16,16V448H64V128H208a16,16,0,0,0,16-16V80a16,16,0,0,0-16-16H48A48,48,0,0,0,0,112V464a48,48,0,0,0,48,48H400a48,48,0,0,0,48-48V336A16,16,0,0,0,432,320ZM488,0h-128c-21.37,0-32.05,25.91-17,41l35.73,35.73L135,320.37a24,24,0,0,0,0,34L157.67,377a24,24,0,0,0,34,0L435.28,133.32,471,169c15,15,41,4.5,41-17V24A24,24,0,0,0,488,0Z" }, "child": [] }] })(props);
+}
 function FaExclamationCircle(props) {
   return GenIcon({ "tag": "svg", "attr": { "viewBox": "0 0 512 512" }, "child": [{ "tag": "path", "attr": { "d": "M504 256c0 136.997-111.043 248-248 248S8 392.997 8 256C8 119.083 119.043 8 256 8s248 111.083 248 248zm-248 50c-25.405 0-46 20.595-46 46s20.595 46 46 46 46-20.595 46-46-20.595-46-46-46zm-43.673-165.346l7.418 136c.347 6.364 5.609 11.346 11.982 11.346h48.546c6.373 0 11.635-4.982 11.982-11.346l7.418-136c.375-6.874-5.098-12.654-11.982-12.654h-63.383c-6.884 0-12.356 5.78-11.981 12.654z" }, "child": [] }] })(props);
 }
+function FaCopy(props) {
+  return GenIcon({ "tag": "svg", "attr": { "viewBox": "0 0 448 512" }, "child": [{ "tag": "path", "attr": { "d": "M320 448v40c0 13.255-10.745 24-24 24H24c-13.255 0-24-10.745-24-24V120c0-13.255 10.745-24 24-24h72v296c0 30.879 25.121 56 56 56h168zm0-344V0H152c-13.255 0-24 10.745-24 24v368c0 13.255 10.745 24 24 24h272c13.255 0 24-10.745 24-24V128H344c-13.2 0-24-10.8-24-24zm120.971-31.029L375.029 7.029A24 24 0 0 0 358.059 0H352v96h96v-6.059a24 24 0 0 0-7.029-16.97z" }, "child": [] }] })(props);
+}
 function FaCheckCircle(props) {
   return GenIcon({ "tag": "svg", "attr": { "viewBox": "0 0 512 512" }, "child": [{ "tag": "path", "attr": { "d": "M504 256c0 136.967-111.033 248-248 248S8 392.967 8 256 119.033 8 256 8s248 111.033 248 248zM227.314 387.314l184-184c6.248-6.248 6.248-16.379 0-22.627l-22.627-22.627c-6.248-6.249-16.379-6.249-22.628 0L216 308.118l-70.059-70.059c-6.248-6.248-16.379-6.248-22.628 0l-22.627 22.627c-6.248 6.248-6.248 16.379 0 22.627l104 104c6.249 6.249 16.379 6.249 22.628.001z" }, "child": [] }] })(props);
-}
-function FaArrowAltCircleUp(props) {
-  return GenIcon({ "tag": "svg", "attr": { "viewBox": "0 0 512 512" }, "child": [{ "tag": "path", "attr": { "d": "M8 256C8 119 119 8 256 8s248 111 248 248-111 248-248 248S8 393 8 256zm292 116V256h70.9c10.7 0 16.1-13 8.5-20.5L264.5 121.2c-4.7-4.7-12.2-4.7-16.9 0l-115 114.3c-7.6 7.6-2.2 20.5 8.5 20.5H212v116c0 6.6 5.4 12 12 12h64c6.6 0 12-5.4 12-12z" }, "child": [] }] })(props);
 }
 
 // decky-plugin/src/index.tsx
@@ -237,7 +243,6 @@ var apiRunSync = callable("run_sync");
 var apiToggleWatcher = callable("toggle_watcher");
 var apiGetRecentLogs = callable("get_recent_logs");
 var apiClearLogs = callable("clear_logs");
-var apiUpdatePlugin = callable("update_plugin");
 var apiStartGoogleLogin = callable("start_google_login");
 var apiSubmitAuthCode = callable("submit_auth_code");
 var apiSignOutGoogle = callable("sign_out_google");
@@ -249,6 +254,83 @@ var formatTimestamp = (ts) => {
   if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
   return new Date(ts * 1e3).toLocaleDateString();
 };
+var openBrowserUrl = (url) => {
+  if (!url) return false;
+  const win = window;
+  try {
+    if (typeof win.SteamClient?.Shell?.OpenURL === "function") {
+      win.SteamClient.Shell.OpenURL(url);
+      return true;
+    }
+  } catch (e) {
+    console.warn("[syncMyShit] SteamClient.Shell.OpenURL failed:", e);
+  }
+  try {
+    if (typeof win.SteamClient?.System?.OpenURLInSystemBrowser === "function") {
+      win.SteamClient.System.OpenURLInSystemBrowser(url);
+      return true;
+    }
+  } catch (e) {
+    console.warn("[syncMyShit] SteamClient.System.OpenURLInSystemBrowser failed:", e);
+  }
+  try {
+    if (typeof win.SteamClient?.System?.OpenBrowser === "function") {
+      win.SteamClient.System.OpenBrowser(url);
+      return true;
+    }
+  } catch (e) {
+    console.warn("[syncMyShit] SteamClient.System.OpenBrowser failed:", e);
+  }
+  try {
+    if (typeof win.Navigation?.NavigateToExternalWeb === "function") {
+      win.Navigation.NavigateToExternalWeb(url);
+      return true;
+    }
+  } catch (e) {
+    console.warn("[syncMyShit] Navigation.NavigateToExternalWeb failed:", e);
+  }
+  try {
+    window.open(url, "_blank");
+    return true;
+  } catch (e) {
+    console.warn("[syncMyShit] window.open failed:", e);
+  }
+  return false;
+};
+var copyToClipboard = async (text) => {
+  if (!text) return;
+  const win = window;
+  let copied = false;
+  try {
+    if (typeof win.SteamClient?.System?.SetClipboardText === "function") {
+      win.SteamClient.System.SetClipboardText(text);
+      copied = true;
+    }
+  } catch (e) {
+  }
+  if (!copied) {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        copied = true;
+      }
+    } catch (e) {
+    }
+  }
+  if (copied) {
+    toaster.toast({
+      title: "Copied Link!",
+      body: "Google Sign-In URL copied to clipboard.",
+      duration: 3e3
+    });
+  } else {
+    toaster.toast({
+      title: "Clipboard",
+      body: "Could not copy automatically. URL shown on screen.",
+      duration: 3e3
+    });
+  }
+};
 var Content = () => {
   const [status, setStatus] = (0, import_react3.useState)(null);
   const [emulators, setEmulators] = (0, import_react3.useState)([]);
@@ -256,7 +338,6 @@ var Content = () => {
   const [logs, setLogs] = (0, import_react3.useState)([]);
   const [syncing, setSyncing] = (0, import_react3.useState)(false);
   const [syncTargetId, setSyncTargetId] = (0, import_react3.useState)(null);
-  const [updating, setUpdating] = (0, import_react3.useState)(false);
   const [loggingIn, setLoggingIn] = (0, import_react3.useState)(false);
   const [authUrl, setAuthUrl] = (0, import_react3.useState)("");
   const [manualCode, setManualCode] = (0, import_react3.useState)("");
@@ -316,9 +397,10 @@ var Content = () => {
       const res = await apiStartGoogleLogin();
       if (res.success && res.auth_url) {
         setAuthUrl(res.auth_url);
+        const opened = openBrowserUrl(res.auth_url);
         toaster.toast({
           title: "Google Sign-In Started",
-          body: "Complete sign-in in the opened browser window.",
+          body: opened ? "Sign in using the opened browser window." : "Please tap 'Open Browser Window' below.",
           duration: 5e3
         });
       } else {
@@ -337,6 +419,10 @@ var Content = () => {
         duration: 5e3
       });
     }
+  };
+  const handleCancelLogin = () => {
+    setLoggingIn(false);
+    setAuthUrl("");
   };
   const handleSubmitManualCode = async () => {
     if (!manualCode.trim()) return;
@@ -477,34 +563,6 @@ var Content = () => {
       console.error(e);
     }
   };
-  const handleUpdatePlugin = async () => {
-    setUpdating(true);
-    try {
-      const res = await apiUpdatePlugin();
-      if (res.success) {
-        toaster.toast({
-          title: "syncMyShit Updated!",
-          body: res.message || "Updated to latest version! Reopen QAM to apply.",
-          duration: 6e3
-        });
-        await refreshData();
-      } else {
-        toaster.toast({
-          title: "Update Failed",
-          body: res.error || "Could not complete update.",
-          duration: 5e3
-        });
-      }
-    } catch (err) {
-      toaster.toast({
-        title: "Update Error",
-        body: String(err?.message || err),
-        duration: 5e3
-      });
-    } finally {
-      setUpdating(false);
-    }
-  };
   return /* @__PURE__ */ window.SP_REACT.createElement(
     "div",
     {
@@ -564,40 +622,45 @@ var Content = () => {
           width: "100%",
           maxWidth: "100%",
           boxSizing: "border-box",
-          background: "rgba(239, 68, 68, 0.1)",
-          border: "1px solid rgba(239, 68, 68, 0.3)",
+          background: loggingIn ? "rgba(56, 189, 248, 0.1)" : "rgba(239, 68, 68, 0.1)",
+          border: `1px solid ${loggingIn ? "rgba(56, 189, 248, 0.3)" : "rgba(239, 68, 68, 0.3)"}`,
           borderRadius: "6px",
           padding: "8px 10px",
           gap: "4px"
         }
       },
-      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", gap: "6px" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaExclamationCircle, { style: { color: "#ef4444" }, size: 13 }), /* @__PURE__ */ window.SP_REACT.createElement("span", { style: { fontWeight: 700, fontSize: "13px", color: "#ef4444" } }, "Not Connected")),
-      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { fontSize: "11px", color: "#94a3b8", lineHeight: 1.35 } }, "Sign in with your Google account to sync saves across your Steam Deck and Android handhelds.")
-    )), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
+      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", gap: "6px" } }, loggingIn ? /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, /* @__PURE__ */ window.SP_REACT.createElement(FaSyncAlt, { className: "fa-spin", style: { color: "#38bdf8" }, size: 13 }), /* @__PURE__ */ window.SP_REACT.createElement("span", { style: { fontWeight: 700, fontSize: "13px", color: "#38bdf8" } }, "Waiting for Google Sign-In...")) : /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, /* @__PURE__ */ window.SP_REACT.createElement(FaExclamationCircle, { style: { color: "#ef4444" }, size: 13 }), /* @__PURE__ */ window.SP_REACT.createElement("span", { style: { fontWeight: 700, fontSize: "13px", color: "#ef4444" } }, "Not Connected"))),
+      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { fontSize: "11px", color: "#94a3b8", lineHeight: 1.35 } }, loggingIn ? "Complete authorization in your browser window. syncMyShit connects automatically once approved." : "Sign in with your Google account to sync saves across your Steam Deck and Android handhelds.")
+    )), !loggingIn ? /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
       import_ui.ButtonItem,
       {
         layout: "below",
         onClick: handleStartGoogleLogin,
         disabled: loggingIn
       },
-      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaGoogle, { size: 13 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, loggingIn ? "Waiting for Sign-In..." : "Sign In to Google Drive"))
-    )), loggingIn && authUrl && /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
-      "div",
+      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaGoogle, { size: 13 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, "Sign In to Google Drive"))
+    )) : /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
+      import_ui.ButtonItem,
       {
-        style: {
-          fontSize: "11px",
-          color: "#94a3b8",
-          lineHeight: 1.35,
-          width: "100%",
-          boxSizing: "border-box",
-          background: "rgba(0, 0, 0, 0.25)",
-          padding: "6px 8px",
-          borderRadius: "4px"
-        }
+        layout: "below",
+        onClick: () => openBrowserUrl(authUrl)
       },
-      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { color: "#38bdf8", fontWeight: 600, marginBottom: "2px" } }, "Authorization In Progress"),
-      "Complete the sign-in prompt in your browser window. Once approved, syncMyShit will connect automatically."
+      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaExternalLinkAlt, { size: 12 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, "\u{1F310} Open Browser Window"))
     )), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
+      import_ui.ButtonItem,
+      {
+        layout: "below",
+        onClick: () => copyToClipboard(authUrl)
+      },
+      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaCopy, { size: 12 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, "\u{1F4CB} Copy Sign-In Link"))
+    )), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
+      import_ui.ButtonItem,
+      {
+        layout: "below",
+        onClick: handleCancelLogin
+      },
+      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", width: "100%" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaTimes, { size: 12 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, "Cancel Sign-In"))
+    ))), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
       import_ui.ButtonItem,
       {
         layout: "below",
@@ -749,15 +812,7 @@ var Content = () => {
       },
       /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaTrashAlt, { size: 11 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, "Clear Activity Log"))
     ))),
-    /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSection, { title: "Plugin Management" }, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.Field, { label: "Version", description: "syncMyShit Decky Plugin" }, /* @__PURE__ */ window.SP_REACT.createElement("span", { style: { color: "#38bdf8", fontWeight: 700, fontSize: "12px" } }, "v1.0.15"))), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
-      import_ui.ButtonItem,
-      {
-        layout: "below",
-        onClick: handleUpdatePlugin,
-        disabled: updating
-      },
-      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" } }, /* @__PURE__ */ window.SP_REACT.createElement(FaArrowAltCircleUp, { className: updating ? "fa-spin" : "", size: 13 }), /* @__PURE__ */ window.SP_REACT.createElement("span", null, updating ? "Updating Plugin..." : "\u26A1 Update Plugin to Latest"))
-    )), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
+    /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSection, { title: "Plugin Info" }, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(import_ui.Field, { label: "Version", description: "syncMyShit Decky Plugin" }, /* @__PURE__ */ window.SP_REACT.createElement("span", { style: { color: "#38bdf8", fontWeight: 700, fontSize: "12px" } }, "v1.0.16"))), /* @__PURE__ */ window.SP_REACT.createElement(import_ui.PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(
       "div",
       {
         style: {
@@ -769,9 +824,9 @@ var Content = () => {
           padding: "4px 0"
         }
       },
-      "Commands in Desktop Mode (Konsole):",
-      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { color: "#94a3b8", fontFamily: "monospace", marginTop: "2px", overflowWrap: "anywhere", wordBreak: "break-all" } }, "curl -sSL .../update-decky.sh | bash"),
-      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { color: "#94a3b8", fontFamily: "monospace", marginTop: "2px", overflowWrap: "anywhere", wordBreak: "break-all" } }, "curl -sSL .../uninstall-decky.sh | bash")
+      "Update or uninstall via Konsole (Desktop Mode):",
+      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { color: "#94a3b8", fontFamily: "monospace", marginTop: "2px", overflowWrap: "anywhere", wordBreak: "break-all" } }, "curl -sSL https://raw.githubusercontent.com/Kyss007/syncMyShit/main/update-decky.sh | bash"),
+      /* @__PURE__ */ window.SP_REACT.createElement("div", { style: { color: "#94a3b8", fontFamily: "monospace", marginTop: "2px", overflowWrap: "anywhere", wordBreak: "break-all" } }, "curl -sSL https://raw.githubusercontent.com/Kyss007/syncMyShit/main/uninstall-decky.sh | bash")
     )))
   );
 };

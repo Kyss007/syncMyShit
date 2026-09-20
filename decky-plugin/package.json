@@ -1,6 +1,6 @@
 {
   "name": "syncmyshit-decky",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "description": "Decky Loader plugin for syncMyShit",
   "type": "module",
   "scripts": {

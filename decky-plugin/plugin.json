@@ -2,7 +2,7 @@
   "name": "syncMyShit",
   "author": "Kyss007",
   "flags": [],
-  "version": "1.0.15",
+  "version": "1.0.16",
   "api_version": 1,
   "description": "Automagic retro emulator cloud save sync for Steam Deck, Android, & PC",
   "publish": {

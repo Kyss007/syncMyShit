@@ -16,9 +16,11 @@ import {
   FaGamepad,
   FaSyncAlt,
   FaTrashAlt,
-  FaArrowAltCircleUp,
   FaSignOutAlt,
   FaKey,
+  FaExternalLinkAlt,
+  FaCopy,
+  FaTimes,
 } from "react-icons/fa";
 
 // RPC method typings
@@ -78,12 +80,6 @@ interface LogsResponse {
   logs: LogEntry[];
 }
 
-interface UpdateResponse {
-  success: boolean;
-  message?: string;
-  error?: string;
-}
-
 // Callable bindings to Python backend (Plugin class)
 const apiGetStatus = callable<[], StatusResponse>("get_status");
 const apiScanSaves = callable<[], ScanResponse>("scan_saves");
@@ -91,7 +87,6 @@ const apiRunSync = callable<[emulatorId?: string], SyncResponse>("run_sync");
 const apiToggleWatcher = callable<[enabled: boolean], { success: boolean; auto_sync: boolean }>("toggle_watcher");
 const apiGetRecentLogs = callable<[], LogsResponse>("get_recent_logs");
 const apiClearLogs = callable<[], { success: boolean }>("clear_logs");
-const apiUpdatePlugin = callable<[], UpdateResponse>("update_plugin");
 const apiStartGoogleLogin = callable<[], { success: boolean; auth_url?: string; error?: string }>("start_google_login");
 const apiSubmitAuthCode = callable<[code: string], { success: boolean; email?: string; error?: string }>("submit_auth_code");
 const apiSignOutGoogle = callable<[], { success: boolean }>("sign_out_google");
@@ -105,6 +100,98 @@ const formatTimestamp = (ts: number): string => {
   return new Date(ts * 1000).toLocaleDateString();
 };
 
+// Browser opening helper for Steam Deck CEF / Game Mode
+const openBrowserUrl = (url: string): boolean => {
+  if (!url) return false;
+  const win = window as any;
+
+  // 1. SteamClient.Shell.OpenURL (Valve standard for Game Mode CEF)
+  try {
+    if (typeof win.SteamClient?.Shell?.OpenURL === "function") {
+      win.SteamClient.Shell.OpenURL(url);
+      return true;
+    }
+  } catch (e) {
+    console.warn("[syncMyShit] SteamClient.Shell.OpenURL failed:", e);
+  }
+
+  // 2. SteamClient.System.OpenURLInSystemBrowser
+  try {
+    if (typeof win.SteamClient?.System?.OpenURLInSystemBrowser === "function") {
+      win.SteamClient.System.OpenURLInSystemBrowser(url);
+      return true;
+    }
+  } catch (e) {
+    console.warn("[syncMyShit] SteamClient.System.OpenURLInSystemBrowser failed:", e);
+  }
+
+  // 3. SteamClient.System.OpenBrowser
+  try {
+    if (typeof win.SteamClient?.System?.OpenBrowser === "function") {
+      win.SteamClient.System.OpenBrowser(url);
+      return true;
+    }
+  } catch (e) {
+    console.warn("[syncMyShit] SteamClient.System.OpenBrowser failed:", e);
+  }
+
+  // 4. Navigation.NavigateToExternalWeb
+  try {
+    if (typeof win.Navigation?.NavigateToExternalWeb === "function") {
+      win.Navigation.NavigateToExternalWeb(url);
+      return true;
+    }
+  } catch (e) {
+    console.warn("[syncMyShit] Navigation.NavigateToExternalWeb failed:", e);
+  }
+
+  // 5. Standard fallback
+  try {
+    window.open(url, "_blank");
+    return true;
+  } catch (e) {
+    console.warn("[syncMyShit] window.open failed:", e);
+  }
+
+  return false;
+};
+
+// Clipboard helper for Steam Deck CEF
+const copyToClipboard = async (text: string) => {
+  if (!text) return;
+  const win = window as any;
+  let copied = false;
+  try {
+    if (typeof win.SteamClient?.System?.SetClipboardText === "function") {
+      win.SteamClient.System.SetClipboardText(text);
+      copied = true;
+    }
+  } catch (e) {}
+
+  if (!copied) {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        copied = true;
+      }
+    } catch (e) {}
+  }
+
+  if (copied) {
+    toaster.toast({
+      title: "Copied Link!",
+      body: "Google Sign-In URL copied to clipboard.",
+      duration: 3000,
+    });
+  } else {
+    toaster.toast({
+      title: "Clipboard",
+      body: "Could not copy automatically. URL shown on screen.",
+      duration: 3000,
+    });
+  }
+};
+
 const Content: FC = () => {
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [emulators, setEmulators] = useState<EmulatorItem[]>([]);
@@ -112,7 +199,6 @@ const Content: FC = () => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [syncing, setSyncing] = useState<boolean>(false);
   const [syncTargetId, setSyncTargetId] = useState<string | null>(null);
-  const [updating, setUpdating] = useState<boolean>(false);
   const [loggingIn, setLoggingIn] = useState<boolean>(false);
   const [authUrl, setAuthUrl] = useState<string>("");
   const [manualCode, setManualCode] = useState<string>("");
@@ -180,9 +266,10 @@ const Content: FC = () => {
       const res = await apiStartGoogleLogin();
       if (res.success && res.auth_url) {
         setAuthUrl(res.auth_url);
+        const opened = openBrowserUrl(res.auth_url);
         toaster.toast({
           title: "Google Sign-In Started",
-          body: "Complete sign-in in the opened browser window.",
+          body: opened ? "Sign in using the opened browser window." : "Please tap 'Open Browser Window' below.",
           duration: 5000,
         });
       } else {
@@ -201,6 +288,12 @@ const Content: FC = () => {
         duration: 5000,
       });
     }
+  };
+
+  // Cancel in-progress sign in
+  const handleCancelLogin = () => {
+    setLoggingIn(false);
+    setAuthUrl("");
   };
 
   // Submit manual authorization code / URL
@@ -356,36 +449,6 @@ const Content: FC = () => {
     }
   };
 
-  // Update plugin from GitHub
-  const handleUpdatePlugin = async () => {
-    setUpdating(true);
-    try {
-      const res = await apiUpdatePlugin();
-      if (res.success) {
-        toaster.toast({
-          title: "syncMyShit Updated!",
-          body: res.message || "Updated to latest version! Reopen QAM to apply.",
-          duration: 6000,
-        });
-        await refreshData();
-      } else {
-        toaster.toast({
-          title: "Update Failed",
-          body: res.error || "Could not complete update.",
-          duration: 5000,
-        });
-      }
-    } catch (err: any) {
-      toaster.toast({
-        title: "Update Error",
-        body: String(err?.message || err),
-        duration: 5000,
-      });
-    } finally {
-      setUpdating(false);
-    }
-  };
-
   return (
     <div
       style={{
@@ -461,58 +524,89 @@ const Content: FC = () => {
                   width: "100%",
                   maxWidth: "100%",
                   boxSizing: "border-box",
-                  background: "rgba(239, 68, 68, 0.1)",
-                  border: "1px solid rgba(239, 68, 68, 0.3)",
+                  background: loggingIn ? "rgba(56, 189, 248, 0.1)" : "rgba(239, 68, 68, 0.1)",
+                  border: `1px solid ${loggingIn ? "rgba(56, 189, 248, 0.3)" : "rgba(239, 68, 68, 0.3)"}`,
                   borderRadius: "6px",
                   padding: "8px 10px",
                   gap: "4px",
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <FaExclamationCircle style={{ color: "#ef4444" }} size={13} />
-                  <span style={{ fontWeight: 700, fontSize: "13px", color: "#ef4444" }}>
-                    Not Connected
-                  </span>
+                  {loggingIn ? (
+                    <>
+                      <FaSyncAlt className="fa-spin" style={{ color: "#38bdf8" }} size={13} />
+                      <span style={{ fontWeight: 700, fontSize: "13px", color: "#38bdf8" }}>
+                        Waiting for Google Sign-In...
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <FaExclamationCircle style={{ color: "#ef4444" }} size={13} />
+                      <span style={{ fontWeight: 700, fontSize: "13px", color: "#ef4444" }}>
+                        Not Connected
+                      </span>
+                    </>
+                  )}
                 </div>
                 <div style={{ fontSize: "11px", color: "#94a3b8", lineHeight: 1.35 }}>
-                  Sign in with your Google account to sync saves across your Steam Deck and Android handhelds.
+                  {loggingIn
+                    ? "Complete authorization in your browser window. syncMyShit connects automatically once approved."
+                    : "Sign in with your Google account to sync saves across your Steam Deck and Android handhelds."}
                 </div>
               </div>
             </PanelSectionRow>
 
-            <PanelSectionRow>
-              <ButtonItem
-                layout="below"
-                onClick={handleStartGoogleLogin}
-                disabled={loggingIn}
-              >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" }}>
-                  <FaGoogle size={13} />
-                  <span>{loggingIn ? "Waiting for Sign-In..." : "Sign In to Google Drive"}</span>
-                </div>
-              </ButtonItem>
-            </PanelSectionRow>
-
-            {loggingIn && authUrl && (
+            {!loggingIn ? (
               <PanelSectionRow>
-                <div
-                  style={{
-                    fontSize: "11px",
-                    color: "#94a3b8",
-                    lineHeight: 1.35,
-                    width: "100%",
-                    boxSizing: "border-box",
-                    background: "rgba(0, 0, 0, 0.25)",
-                    padding: "6px 8px",
-                    borderRadius: "4px",
-                  }}
+                <ButtonItem
+                  layout="below"
+                  onClick={handleStartGoogleLogin}
+                  disabled={loggingIn}
                 >
-                  <div style={{ color: "#38bdf8", fontWeight: 600, marginBottom: "2px" }}>
-                    Authorization In Progress
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" }}>
+                    <FaGoogle size={13} />
+                    <span>Sign In to Google Drive</span>
                   </div>
-                  Complete the sign-in prompt in your browser window. Once approved, syncMyShit will connect automatically.
-                </div>
+                </ButtonItem>
               </PanelSectionRow>
+            ) : (
+              <>
+                <PanelSectionRow>
+                  <ButtonItem
+                    layout="below"
+                    onClick={() => openBrowserUrl(authUrl)}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" }}>
+                      <FaExternalLinkAlt size={12} />
+                      <span>🌐 Open Browser Window</span>
+                    </div>
+                  </ButtonItem>
+                </PanelSectionRow>
+
+                <PanelSectionRow>
+                  <ButtonItem
+                    layout="below"
+                    onClick={() => copyToClipboard(authUrl)}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" }}>
+                      <FaCopy size={12} />
+                      <span>📋 Copy Sign-In Link</span>
+                    </div>
+                  </ButtonItem>
+                </PanelSectionRow>
+
+                <PanelSectionRow>
+                  <ButtonItem
+                    layout="below"
+                    onClick={handleCancelLogin}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", width: "100%" }}>
+                      <FaTimes size={12} />
+                      <span>Cancel Sign-In</span>
+                    </div>
+                  </ButtonItem>
+                </PanelSectionRow>
+              </>
             )}
 
             <PanelSectionRow>
@@ -736,25 +830,12 @@ const Content: FC = () => {
         )}
       </PanelSection>
 
-      {/* Plugin Management & Updates */}
-      <PanelSection title="Plugin Management">
+      {/* Plugin Information */}
+      <PanelSection title="Plugin Info">
         <PanelSectionRow>
           <Field label="Version" description="syncMyShit Decky Plugin">
-            <span style={{ color: "#38bdf8", fontWeight: 700, fontSize: "12px" }}>v1.0.15</span>
+            <span style={{ color: "#38bdf8", fontWeight: 700, fontSize: "12px" }}>v1.0.16</span>
           </Field>
-        </PanelSectionRow>
-
-        <PanelSectionRow>
-          <ButtonItem
-            layout="below"
-            onClick={handleUpdatePlugin}
-            disabled={updating}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
-              <FaArrowAltCircleUp className={updating ? "fa-spin" : ""} size={13} />
-              <span>{updating ? "Updating Plugin..." : "⚡ Update Plugin to Latest"}</span>
-            </div>
-          </ButtonItem>
         </PanelSectionRow>
 
         <PanelSectionRow>
@@ -768,12 +849,12 @@ const Content: FC = () => {
               padding: "4px 0",
             }}
           >
-            Commands in Desktop Mode (Konsole):
+            Update or uninstall via Konsole (Desktop Mode):
             <div style={{ color: "#94a3b8", fontFamily: "monospace", marginTop: "2px", overflowWrap: "anywhere", wordBreak: "break-all" }}>
-              curl -sSL .../update-decky.sh | bash
+              curl -sSL https://raw.githubusercontent.com/Kyss007/syncMyShit/main/update-decky.sh | bash
             </div>
             <div style={{ color: "#94a3b8", fontFamily: "monospace", marginTop: "2px", overflowWrap: "anywhere", wordBreak: "break-all" }}>
-              curl -sSL .../uninstall-decky.sh | bash
+              curl -sSL https://raw.githubusercontent.com/Kyss007/syncMyShit/main/uninstall-decky.sh | bash
             </div>
           </div>
         </PanelSectionRow>

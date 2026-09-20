@@ -301,11 +301,27 @@ class Plugin:
         """Starts local OAuth loopback listener and returns authorization URL."""
         try:
             auth_url = self.oauth_mgr.start_auth_flow()
+            import subprocess
+            import webbrowser
+
+            # Attempt to launch system browser for user deck or current user
+            for cmd in [
+                ["runuser", "-u", "deck", "--", "xdg-open", auth_url],
+                ["sudo", "-u", "deck", "xdg-open", auth_url],
+                ["runuser", "-u", "deck", "--", "steam", auth_url],
+                ["xdg-open", auth_url],
+            ]:
+                try:
+                    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    break
+                except Exception:
+                    pass
+
             try:
-                import webbrowser
                 webbrowser.open(auth_url)
             except Exception:
                 pass
+
             return {"success": True, "auth_url": auth_url}
         except Exception as e:
             logger.error(f"[syncMyShit] Failed to start Google login: {e}", exc_info=True)
@@ -314,6 +330,7 @@ class Plugin:
     async def submit_auth_code(self, code_or_url: str) -> Dict[str, Any]:
         """Exchanges an authorization code or callback URL for Google Drive tokens."""
         try:
+            import urllib.parse
             code = code_or_url.strip()
             if "code=" in code:
                 parsed = urllib.parse.urlparse(code)
@@ -347,49 +364,13 @@ class Plugin:
         """Adds a custom emulator save directory."""
         if not name or not path:
             return {"success": False, "error": "Name and path are required"}
-        self.config.add_custom_path(name, path)
+        p = Path(path).resolve()
+        if is_steam_game_path(p):
+            return {"success": False, "error": "Cannot add Steam game saves; Steam Cloud already syncs them."}
+        self.config.add_custom_path(name, str(p))
         return {"success": True, "custom_paths": self.config.get("custom_paths", [])}
 
     async def remove_custom_path(self, path: str) -> Dict[str, Any]:
         """Removes a custom emulator save directory."""
         self.config.remove_custom_path(path)
         return {"success": True, "custom_paths": self.config.get("custom_paths", [])}
-
-    async def update_plugin(self) -> Dict[str, Any]:
-        """Downloads latest release bundle from GitHub and updates this plugin."""
-        import io
-        import tarfile
-        import urllib.request
-
-        def _do_update():
-            url = "https://github.com/Kyss007/syncMyShit/archive/refs/heads/main.tar.gz"
-            req = urllib.request.Request(url, headers={"User-Agent": "syncMyShit-Decky"})
-            with urllib.request.urlopen(req, timeout=20) as resp:
-                tar_bytes = resp.read()
-
-            tar = tarfile.open(fileobj=io.BytesIO(tar_bytes), mode="r:gz")
-            prefix = "syncMyShit-main/decky-plugin/"
-            count = 0
-            for member in tar.getmembers():
-                if member.name.startswith(prefix) and not member.isdir():
-                    rel = member.name[len(prefix):]
-                    dest_file = PLUGIN_DIR / rel
-                    dest_file.parent.mkdir(parents=True, exist_ok=True)
-                    f = tar.extractfile(member)
-                    if f:
-                        with open(dest_file, "wb") as out:
-                            out.write(f.read())
-                        count += 1
-            return count
-
-        loop = asyncio.get_event_loop()
-        try:
-            files_updated = await loop.run_in_executor(None, _do_update)
-            logger.info(f"[syncMyShit] Self-update succeeded ({files_updated} files updated)")
-            return {
-                "success": True,
-                "message": f"Updated {files_updated} files to latest! Please reload Decky or switch tabs.",
-            }
-        except Exception as e:
-            logger.error(f"[syncMyShit] Update failed: {e}", exc_info=True)
-            return {"success": False, "error": str(e)}
